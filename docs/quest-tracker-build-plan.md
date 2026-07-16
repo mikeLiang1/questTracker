@@ -1,9 +1,12 @@
 # Quest Tracker — Build Plan & Model Prompts
 
 > Companion to `quest-tracker-design-foundation-v2.md`. This doc defines the module
-> architecture, the build order, and copy-paste prompts for delegating each phase to a
-> Sonnet-level model. Phases marked **[YOU]** are learning-critical: write them yourself,
-> use the model only for review. Phases marked **[DELEGATE]** are safe to hand off.
+> architecture, the build order, and the per-phase specs. **All phases are implemented
+> by Claude — this project is not a learning exercise.** The historical [YOU]/[DELEGATE]
+> labels now indicate only how product-critical a phase's decisions are: [YOU]-labelled
+> phases must have their decisions made explicitly and written down in this doc before
+> or while building, never invented silently mid-implementation. The user's role is
+> verification between phases (see the working rhythm in CLAUDE.md).
 
 ---
 
@@ -88,36 +91,68 @@ fails if an androidx import is added.
 
 ---
 
-## Phase 1 — Core domain models & quest engine [YOU — model for review only]
+## Phase 1 — Core domain models & quest engine [decisions locked below]
 
-**Goal:** the entire game logic, fully tested, no Android in sight. This is the phase
-that teaches you the most and the one interviewers will ask about. Write it yourself.
+**Goal:** the entire game logic, fully tested, no Android in sight.
 
-What it contains: `Quest`, `QuestKind` (Recurring/SideQuest — side quests never feed
-attributes), `QuestType` (Maintenance/Progression/Outcome), `Cadence`
-(Daily/Weekly/Monthly), `CompletionRecord`, `ReminderSchedule` (time + days, owned by
-the quest; the engine exposes "next due reminders" as pure data — actual OS scheduling
-lives in :app), `Attribute` + accrual math (recurring completions only), consistency
-scoring with rest-day absorption, milestone thresholds, diminishing returns for
-progression quests, and the `QuestRepository` / `HealthDataSource` / `Clock` interfaces.
+**Contents:** `Quest`, `QuestId`, `QuestKind` (Recurring/SideQuest — side quests never
+feed attributes), `QuestType` (Maintenance/Progression/Outcome), `Cadence`
+(Daily/Weekly/Monthly), `QuestStatus` (Active/Retired), `ProgressionTarget`,
+`CompletionRecord`, `ReminderSchedule` (owned by the quest; the engine exposes
+next-due reminders as pure data — actual OS scheduling lives in :app),
+`Attribute` + accrual math (recurring completions only), consistency scoring with
+rest-day absorption, milestone thresholds + titles, diminishing returns for
+progression quests, `CompletionFeedback` (identity-framed completion copy, produced
+here so the UI never invents reward copy), the done-for-today computation
+(`TodayBoard`), quest escalation, and the `QuestRepository` / `HealthDataSource` /
+`Clock` interfaces.
 
-**Review prompt (after you've written it):**
-```
-[PREAMBLE]
+### Locked decisions (resolves open decisions #3 and #4)
 
-I have written the :core domain layer myself and want a rigorous review. Do NOT
-rewrite it — review it.
+**Time.** `Clock` exposes `now(): Instant` and `zone(): ZoneId` (java.time — pure JVM,
+zero Android). Engine functions take dates/zones explicitly so they stay pure. A
+completion's credited period (`periodStart`) is frozen at record time in the user's
+then-current zone — travelling later never rewrites history. Weeks are ISO
+(Monday-start); months are calendar months.
 
-Focus on: (1) edge cases in time handling — midnight boundaries, timezone changes,
-DST, the user travelling; (2) correctness of consistency scoring around rest-day
-absorption — construct adversarial completion histories and trace my code against
-them; (3) API design — is anything leaking mutable state or Android assumptions;
-(4) missing test cases — list concrete scenarios my test suite does not cover.
+**Attribute accrual (recurring quests only).** Base points per completion:
+Daily = 1, Weekly = 3, Monthly = 10 — proportional to the commitment window, dailies
+stay the fastest-feeling track. One credit per quest per period (duplicates dedupe).
+Side quests never accrue.
 
-Output: a numbered list of findings, each with severity (bug / design smell / nit),
-the exact location, and a suggested test that would catch it. Do not produce
-replacement implementations unless a finding is severity: bug.
-```
+**Diminishing returns (Progression quests only).** Completions at a given escalation
+level earn full base points for the first 15 completions at that level, then 50%
+thereafter. Escalating (any target change bumps the escalation level) restores the
+full rate. Never zero, never retroactive — banked points are permanent. Maintenance
+and Outcome quests always earn full base: showing up is the win.
+
+**Milestones.** Rank r is reached at cumulative attribute points 5·r·(r+1)/2 →
+5, 15, 30, 50, 75, 105… (one daily quest reaches rank 1 in ~5 days, rank 3 around
+day 30 — frequent early, earned later). Titles per rank: Unwritten (0), Awakened,
+Committed, Consistent, Established, Relentless, Exemplar, then Exemplar II/III…
+Ranks never regress (points only ever grow).
+
+**Consistency with rest-day absorption.** Per quest, over the fully-elapsed periods
+in a rolling window — the current (in-progress) period and periods before the quest
+existed are excluded. Window: Daily = 28 days, Weekly = 12 weeks, Monthly = 6 months.
+Rest allowance = ⌈evaluated / 7⌉ for daily, ⌈evaluated / 6⌉ for weekly and monthly
+(ceiling, so brand-new quests already absorb a miss — weeks 2–4 are where churn
+lives). Score = completed / (evaluated − min(misses, allowance)), capped at 1.0.
+Always presented as a rate, never a breakable chain; zero evidence scores a neutral
+1.0. Absorption is also what makes sync gaps harmless: the engine only ever sees
+completions, so a missing day dents nothing until misses exceed the allowance.
+
+**Done for today.** True when every active recurring quest is completed for its
+current period. Side quests never block it — they're life admin with no due date,
+not identity work.
+
+**Reminders.** Next-due is pure computation: recurring schedules yield the next
+(day-of-week, time) occurrence after `from`, skipping occurrences whose period is
+already completed; one-shots fire once and are suppressed after completion.
+DST-gap local times shift forward (java.time semantics). OS scheduling is Phase 3b.
+
+**Definition of done:** `./gradlew :core:check` passes — the full engine test suite
+plus `verifyNoAndroidImports`.
 
 ---
 
@@ -337,11 +372,10 @@ never mutates state directly.
    both when reality diverges. Divergence you don't write down becomes architecture
    nobody decided.
 
-## Open decisions to make before Phase 0 (yours, not the model's)
+## Open decisions
 
-1. Hilt vs Koin (portfolio-idiomatic vs KMP-ready).
-2. The three starting-class presets and their quest loadouts (blocks Phase 6, and
-   informs the Phase 1 quest catalogue).
-3. Rest-day absorption rule, precisely (blocks Phase 1).
-4. Milestone thresholds & diminishing-returns curve (blocks Phase 1 — and write this
-   math yourself).
+1. ~~Hilt vs Koin~~ — **DECIDED (Phase 0): Hilt** (already in `libs.versions.toml`).
+2. The three starting-class presets and their quest loadouts (blocks Phase 6).
+3. ~~Rest-day absorption rule~~ — **DECIDED: see Phase 1 locked decisions.**
+4. ~~Milestone thresholds & diminishing-returns curve~~ — **DECIDED: see Phase 1
+   locked decisions.**
