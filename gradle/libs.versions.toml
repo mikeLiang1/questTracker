@@ -13,6 +13,7 @@ androidx-lifecycle = "2.9.4"
 composeBom = "2026.06.00"
 
 room = "2.8.4"
+sqlite = "2.6.2"
 work = "2.10.1"
 healthConnect = "1.1.0"
 
@@ -21,6 +22,9 @@ hilt = "2.58"
 coroutines = "1.9.0"
 junitJupiter = "5.11.4"
 turbine = "1.2.1"
+junit4 = "4.13.2"
+robolectric = "4.14.1"
+androidxTestCore = "1.6.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }
@@ -39,6 +43,8 @@ compose-material3 = { module = "androidx.compose.material3:material3" }
 room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
+sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version.ref = "sqlite" }
 
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "healthConnect" }
@@ -55,6 +61,11 @@ junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", vers
 junit-jupiter-params = { module = "org.junit.jupiter:junit-jupiter-params", version.ref = "junitJupiter" }
 
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+
+junit4 = { module = "junit:junit", version.ref = "junit4" }
+junit-vintage-engine = { module = "org.junit.vintage:junit-vintage-engine", version.ref = "junitJupiter" }
+robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidxTestCore" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }
