@@ -215,6 +215,22 @@ Include: preview composables for each state (loading, list, all-done, empty), an
 ViewModel unit tests using Turbine covering the event → state transitions.
 ```
 
+### Phase 3 decisions (locked during implementation)
+
+- **Quick-add recurring quests are always Maintenance.** Progression targets and
+  Outcome measures need more thought than a 5-second sheet allows; they belong to the
+  quest-management flow (later phase). The sheet captures cadence + attribute only.
+- **Quick-add reminder mapping.** Side quest → one-shot at the next occurrence of the
+  chosen time (today if still ahead, else tomorrow). Daily quest → every day at that
+  time. Weekly/Monthly quest → weekly on the day the quest was created (the sheet has
+  no day picker; weekly is the least-surprising nudge for a monthly quest and is
+  editable in Phase 3b).
+- **"Done for today" replaces the recurring list only.** Open side quests stay listed
+  below the calm state — they're captured life admin, and hiding them would lose
+  them; they still never block or dilute "done".
+- **Auto-tracked quests keep the manual tick** alongside live progress, honoring the
+  design rule that absent health data never blocks completion.
+
 ---
 
 ## Phase 3b — Reminders & notifications [DELEGATE]
@@ -272,6 +288,33 @@ Task: Implement :health — a Health Connect adapter implementing this :core int
   zero that could be mistaken for real data.
 - Tests: fake Health Connect client; cover the failure→Unavailable paths explicitly.
 ```
+
+### Phase 4 decisions (locked during implementation)
+
+- **No raw health data is persisted.** Health Connect stays the source of truth for
+  metric values; sync converts "target met on day D" into an ordinary
+  `CompletionRecord(source = AutoTracked)`. The decision function is pure :core
+  (`autoCompletionFor`) — :health reads and persists, but never decides.
+- **One reconciliation pass, two triggers.** The 15-min periodic worker and the
+  on-app-open refresh run the identical pass: for each active auto-tracked quest,
+  re-read day totals for today plus the two previous local dates (≥48h, catching
+  late-arriving provider data) and bank completions for periods that hit target and
+  aren't already credited. Period dedupe makes re-runs no-ops; already-banked periods
+  are skipped without a read.
+- **Strictly additive.** Unavailable or below-target days write nothing and revoke
+  nothing; a manual completion suppresses auto credit for its period (manual is never
+  second-class). Data older than the window is deliberately ignored — rest-day
+  absorption already treats those days as neutral, so nothing is lost.
+- **`AutoTracking.dailyTarget` is per-day at every cadence:** a weekly/monthly quest
+  auto-completes its period when any single day in it reaches the daily target.
+- **Failures are silent.** The worker always returns success — the periodic cadence
+  is the retry, and there is no user-visible sync-failure state anywhere.
+- **Sync is not expedited work.** Pre-S expedited work runs as a foreground service
+  whose notification the user never scheduled — collides with the notification rule.
+  Plain one-time work starts promptly for a foregrounded app.
+- **Live progress is a poll.** Health Connect has no push API for aggregates;
+  `observeToday` re-reads today's total every 60s while collected, re-resolving
+  "today" each tick so collection across midnight follows the calendar.
 
 ---
 

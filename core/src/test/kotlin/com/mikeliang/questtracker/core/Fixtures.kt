@@ -2,6 +2,7 @@ package com.mikeliang.questtracker.core
 
 import com.mikeliang.questtracker.core.engine.periodStartFor
 import com.mikeliang.questtracker.core.model.Attribute
+import com.mikeliang.questtracker.core.model.AutoTracking
 import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.core.model.CompletionRecord
 import com.mikeliang.questtracker.core.model.CompletionSource
@@ -36,6 +37,7 @@ fun recurringQuest(
     createdAt: Instant = Instant.parse("2026-01-01T00:00:00Z"),
     status: QuestStatus = QuestStatus.Active,
     reminder: ReminderSchedule? = null,
+    autoTracking: AutoTracking? = null,
 ): Quest = Quest(
     id = QuestId(id),
     title = title,
@@ -43,6 +45,7 @@ fun recurringQuest(
     createdAt = createdAt,
     status = status,
     reminder = reminder,
+    autoTracking = autoTracking,
 )
 
 fun progressionQuest(
