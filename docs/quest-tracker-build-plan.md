@@ -261,6 +261,34 @@ Task: Implement quest reminders in :app.
   reschedule on boot).
 ```
 
+### Phase 3b decisions (locked during implementation)
+
+- **:core owns the "when", :app owns the "how".** `nextReminderAfter` (Phase 1) already
+  encodes every suppression rule — retired quests, completed periods, spent one-shots,
+  DST-gap shift. `ReminderCoordinator` only ever schedules the exact instant it returns,
+  so the no-nag law is enforced in one pure, tested place; the AlarmManager adapter never
+  decides whether to fire.
+- **Alarms stay in sync via a repository collector, not the ViewModel.** The Application
+  runs `ReminderCoordinator.keepInSync()`, which re-syncs every quest's alarm on any
+  quest/completion change. Completing a quest (manually, from the notification, or via
+  auto-tracking) therefore cancels or advances its reminder for free — the daily-loop
+  ViewModel stayed untouched, and its tests were unaffected.
+- **Exact where permitted, inexact otherwise; both permissions skippable.**
+  `setExactAndAllowWhileIdle` when `canScheduleExactAlarms()`, else
+  `setAndAllowWhileIdle` (a late nudge still lands in the same period). `POST_NOTIFICATIONS`
+  is asked once at launch and never gates anything; a denial just means silent reminders.
+  No permission is ever forced.
+- **Reminder *editing* UI is deferred to the quest-management/detail flow (a later
+  phase).** Quick-add already captures reminders (Phase 3), and there is no quest-detail
+  screen yet. This phase delivers the full delivery pipeline — schedule, fire, complete
+  from the shade, reschedule on boot/time-change — which is its stated core and its test
+  surface. A notification carries its quest id for a future detail deep link; today tapping
+  opens the list.
+- **Notification content is title-only, low-importance channel, with a "Complete" action.**
+  No body text, no category framing, no re-engagement. Manual completion from the shade
+  routes through the same `QuestEngine.complete` path the UI uses (manual is never
+  second-class).
+
 ---
 
 ## Phase 4 — Health Connect integration [DELEGATE the plumbing, YOU own the policy]
