@@ -168,6 +168,26 @@ class QuestDetailViewModelTest {
     }
 
     @Test
+    fun `a recurring edit can toggle the journal link`() = runTest {
+        val quest = recurringQuest()
+        repository.seed(quest)
+
+        viewModel().onEvent(
+            QuestDetailEvent.SaveRecurringEdit(
+                QuestEdit.EditRecurring(
+                    title = quest.title,
+                    cadence = Cadence.Daily,
+                    attribute = Attribute.Body,
+                    reminder = null,
+                    journalLinked = true,
+                )
+            )
+        )
+
+        assertTrue((repository.storedQuests.single().kind as QuestKind.Recurring).journalLinked)
+    }
+
+    @Test
     fun `a cadence edit stamps cadenceChangedOn with the clock's today`() = runTest {
         val quest = recurringQuest(cadence = Cadence.Daily)
         repository.seed(quest)

@@ -39,10 +39,16 @@ fun StartingClass.questLoadout(
         cadence: Cadence,
         attribute: Attribute,
         autoTracking: AutoTracking? = null,
+        journalLinked: Boolean = false,
     ) = Quest(
         id = newId(),
         title = title,
-        kind = QuestKind.Recurring(cadence = cadence, type = QuestType.Maintenance, attribute = attribute),
+        kind = QuestKind.Recurring(
+            cadence = cadence,
+            type = QuestType.Maintenance,
+            attribute = attribute,
+            journalLinked = journalLinked,
+        ),
         createdAt = createdAt,
         autoTracking = autoTracking,
     )
@@ -56,7 +62,7 @@ fun StartingClass.questLoadout(
         )
         StartingClass.Sage -> listOf(
             quest("Read 20 minutes", Cadence.Daily, Attribute.Mind),
-            quest("One line of journal", Cadence.Daily, Attribute.Mind),
+            quest("One line of journal", Cadence.Daily, Attribute.Mind, journalLinked = true),
             quest("Walk 6,000 steps", Cadence.Daily, Attribute.Body, AutoTracking(HealthMetric.Steps, 6_000.0)),
             quest("One deep-work block", Cadence.Weekly, Attribute.Discipline),
         )

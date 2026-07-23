@@ -47,12 +47,13 @@ fun QuickAddSheet(
     var recurring by remember { mutableStateOf(false) }
     var cadence by remember { mutableStateOf(Cadence.Daily) }
     var attribute by remember { mutableStateOf(Attribute.Discipline) }
+    var journalLinked by remember { mutableStateOf(false) }
 
     fun save() {
         if (title.isBlank()) return
         onEvent(
             if (recurring) {
-                QuestListEvent.AddRecurringQuest(title, cadence, attribute, reminderTime)
+                QuestListEvent.AddRecurringQuest(title, cadence, attribute, reminderTime, journalLinked)
             } else {
                 QuestListEvent.AddSideQuest(title, reminderTime)
             }
@@ -97,6 +98,12 @@ fun QuickAddSheet(
                 Text("Which attribute does it build?", style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(4.dp))
                 AttributePicker(selected = attribute, onSelect = { attribute = it })
+                Spacer(Modifier.height(12.dp))
+                FilterChip(
+                    selected = journalLinked,
+                    onClick = { journalLinked = !journalLinked },
+                    label = { Text("Completes when I journal") },
+                )
             }
 
             Spacer(Modifier.height(20.dp))

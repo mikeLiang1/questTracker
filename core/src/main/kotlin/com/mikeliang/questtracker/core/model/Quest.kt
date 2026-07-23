@@ -58,11 +58,19 @@ data class ProgressionTarget(
  */
 sealed interface QuestKind {
 
+    /**
+     * @property journalLinked when true, saving a journal entry auto-completes this
+     * quest for the current period. One-directional sugar: writing completes the
+     * quest; the quest never demands writing — its manual tick keeps working.
+     * Lives here rather than on [Quest] so a side quest can't be journal-linked
+     * by construction (linkage is a recurring-practice concept).
+     */
     data class Recurring(
         val cadence: Cadence,
         val type: QuestType,
         val attribute: Attribute,
         val progression: ProgressionTarget? = null,
+        val journalLinked: Boolean = false,
     ) : QuestKind {
         init {
             require((type == QuestType.Progression) == (progression != null)) {

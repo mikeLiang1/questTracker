@@ -48,3 +48,40 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         statements.forEach(connection::execSQL)
     }
 }
+
+/**
+ * v2 → v3 (Phase 7b): journaling.
+ *
+ * - `quests.journalLinked` — opt-in flag: saving a journal entry auto-completes the
+ *   quest for its current period. Defaults to 0 for every existing quest (linkage is
+ *   an explicit user choice; no title-matching backfill — a Sage user flips the
+ *   toggle on their journal quest in the edit sheet).
+ * - `journal_entries` — free-text entries, the one mutable table. No FK to
+ *   completions: a completion banked by an entry save is an ordinary append-only
+ *   record and survives the entry's edit or deletion.
+ */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+
+    private val statements = listOf(
+        "ALTER TABLE quests ADD COLUMN journalLinked INTEGER NOT NULL DEFAULT 0",
+        """
+        CREATE TABLE IF NOT EXISTS `journal_entries` (
+          `id` TEXT NOT NULL,
+          `text` TEXT NOT NULL,
+          `createdAtEpochMillis` INTEGER NOT NULL,
+          `entryDateEpochDay` INTEGER NOT NULL,
+          `editedAtEpochMillis` INTEGER,
+          PRIMARY KEY(`id`)
+        )
+        """.trimIndent(),
+        "CREATE INDEX IF NOT EXISTS `index_journal_entries_entryDateEpochDay` ON `journal_entries` (`entryDateEpochDay`)",
+    )
+
+    override fun migrate(db: SupportSQLiteDatabase) {
+        statements.forEach(db::execSQL)
+    }
+
+    override fun migrate(connection: SQLiteConnection) {
+        statements.forEach(connection::execSQL)
+    }
+}

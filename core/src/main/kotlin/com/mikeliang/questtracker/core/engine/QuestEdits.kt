@@ -29,6 +29,7 @@ sealed interface QuestEdit {
         val attribute: Attribute,
         val reminder: ReminderSchedule?,
         val target: TargetEdit = TargetEdit.Keep,
+        val journalLinked: Boolean = false,
     ) : QuestEdit
 }
 
@@ -117,6 +118,7 @@ fun editQuest(
                     type = type,
                     attribute = edit.attribute,
                     progression = progression,
+                    journalLinked = edit.journalLinked,
                 ),
                 cadenceChangedOn = if (edit.cadence != kind.cadence) today else quest.cadenceChangedOn,
             )

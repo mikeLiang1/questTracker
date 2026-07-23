@@ -87,6 +87,15 @@ class QuestDaoTest {
     }
 
     @Test
+    fun `upsert then getQuest round-trips a journal-linked quest`() = runTest {
+        val quest = recurringQuest(id = "quest-journal", attribute = Attribute.Mind, journalLinked = true)
+
+        dao.upsert(quest.toEntity())
+
+        assertEquals(quest, dao.getQuest("quest-journal")?.toDomain())
+    }
+
+    @Test
     fun `getQuest returns null for unknown id`() = runTest {
         assertNull(dao.getQuest("does-not-exist"))
     }

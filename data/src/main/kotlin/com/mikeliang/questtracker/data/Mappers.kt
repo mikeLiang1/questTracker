@@ -6,6 +6,8 @@ import com.mikeliang.questtracker.core.model.AutoTracking
 import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.core.model.CompletionRecord
 import com.mikeliang.questtracker.core.model.CompletionSource
+import com.mikeliang.questtracker.core.model.JournalEntry
+import com.mikeliang.questtracker.core.model.JournalEntryId
 import com.mikeliang.questtracker.core.model.ProgressionTarget
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
@@ -14,6 +16,7 @@ import com.mikeliang.questtracker.core.model.QuestStatus
 import com.mikeliang.questtracker.core.model.QuestType
 import com.mikeliang.questtracker.core.model.ReminderSchedule
 import com.mikeliang.questtracker.data.db.CompletionEntity
+import com.mikeliang.questtracker.data.db.JournalEntryEntity
 import com.mikeliang.questtracker.data.db.QuestEntity
 import java.time.DayOfWeek
 import java.time.Instant
@@ -43,6 +46,7 @@ fun Quest.toEntity(): QuestEntity {
         autoTrackingMetric = autoTracking?.metric?.name,
         autoTrackingDailyTarget = autoTracking?.dailyTarget,
         cadenceChangedOnEpochDay = cadenceChangedOn?.toEpochDay(),
+        journalLinked = recurring?.journalLinked ?: false,
     )
 }
 
@@ -59,6 +63,7 @@ fun QuestEntity.toDomain(): Quest {
                     escalationLevel = progressionEscalationLevel ?: 0,
                 )
             },
+            journalLinked = journalLinked,
         )
     } else {
         QuestKind.SideQuest
@@ -114,4 +119,20 @@ fun CompletionEntity.toDomain(): CompletionRecord = CompletionRecord(
     escalationLevel = escalationLevel,
     attribute = attribute?.let { Attribute.valueOf(it) },
     basePoints = basePoints,
+)
+
+fun JournalEntry.toEntity(): JournalEntryEntity = JournalEntryEntity(
+    id = id.value,
+    text = text,
+    createdAtEpochMillis = createdAt.toEpochMilli(),
+    entryDateEpochDay = entryDate.toEpochDay(),
+    editedAtEpochMillis = editedAt?.toEpochMilli(),
+)
+
+fun JournalEntryEntity.toDomain(): JournalEntry = JournalEntry(
+    id = JournalEntryId(id),
+    text = text,
+    createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
+    entryDate = LocalDate.ofEpochDay(entryDateEpochDay),
+    editedAt = editedAtEpochMillis?.let { Instant.ofEpochMilli(it) },
 )

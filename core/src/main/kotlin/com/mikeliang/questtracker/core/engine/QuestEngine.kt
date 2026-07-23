@@ -3,6 +3,7 @@ package com.mikeliang.questtracker.core.engine
 import com.mikeliang.questtracker.core.Clock
 import com.mikeliang.questtracker.core.model.CompletionRecord
 import com.mikeliang.questtracker.core.model.CompletionSource
+import com.mikeliang.questtracker.core.model.JournalEntry
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestKind
 import com.mikeliang.questtracker.core.model.QuestStatus
@@ -88,6 +89,27 @@ class QuestEngine(private val clock: Clock) {
             feedback = buildCompletionFeedback(quest, knownQuests, completions, record),
         )
     }
+
+    /**
+     * The completions a just-saved journal entry banks: every active journal-linked
+     * recurring quest not already done this period, each through [complete] (so
+     * period dedupe and frozen accrual apply). Caller persists every record in
+     * [JournalSaveResult.records]; empty records is a normal outcome, not an error.
+     */
+    fun completeFromJournalEntry(
+        quests: List<Quest>,
+        completions: List<CompletionRecord>,
+    ): JournalSaveResult =
+        completeJournalLinkedQuests(quests) { quest, newRecords ->
+            complete(quest, quests, completions + newRecords, CompletionSource.Manual)
+        }
+
+    /** The Quest Log timeline in the user's current zone, newest first. */
+    fun questLog(
+        quests: List<Quest>,
+        completions: List<CompletionRecord>,
+        entries: List<JournalEntry>,
+    ): List<QuestLogDay> = buildQuestLog(quests, completions, entries, clock.zone())
 
     /**
      * Applies a validated [QuestEdit] to [quest] as of today (the clock stamps

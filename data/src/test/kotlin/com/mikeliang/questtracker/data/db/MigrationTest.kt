@@ -85,4 +85,63 @@ class MigrationTest {
             }
         }
     }
+
+    @Test
+    fun `migrating 2 to 3 adds journal_entries and defaults journalLinked to 0`() {
+        helper.createDatabase(2).use { v2 ->
+            v2.execSQL(
+                "INSERT INTO quests (id, title, cadence, questType, attribute, createdAtEpochMillis, status) " +
+                    "VALUES ('q-journal', 'One line of journal', 'Daily', 'Maintenance', 'Mind', 0, 'Active')"
+            )
+            v2.execSQL(
+                "INSERT INTO completions (questId, completedAtEpochMillis, periodStartEpochDay, source, attribute, basePoints) " +
+                    "VALUES ('q-journal', 0, 20000, 'Manual', 'Mind', 1.0)"
+            )
+        }
+
+        val v3 = helper.runMigrationsAndValidate(3, listOf(MIGRATION_2_3))
+        v3.use { connection ->
+            // Existing quests are unlinked: linkage is an explicit user choice.
+            connection.prepare("SELECT journalLinked FROM quests WHERE id = 'q-journal'").use { stmt ->
+                stmt.step()
+                assertEquals(0L, stmt.getLong(0))
+            }
+            // Completions survive untouched.
+            connection.prepare("SELECT COUNT(*) FROM completions").use { stmt ->
+                stmt.step()
+                assertEquals(1L, stmt.getLong(0))
+            }
+            // The new table exists and is empty but queryable.
+            connection.prepare("SELECT COUNT(*) FROM journal_entries").use { stmt ->
+                stmt.step()
+                assertEquals(0L, stmt.getLong(0))
+            }
+        }
+    }
+
+    @Test
+    fun `the full chain 1 to 3 runs cleanly`() {
+        helper.createDatabase(1).use { v1 ->
+            v1.execSQL(
+                "INSERT INTO quests (id, title, cadence, questType, attribute, createdAtEpochMillis, status) " +
+                    "VALUES ('q-daily', 'Gym hour', 'Daily', 'Maintenance', 'Body', 0, 'Active')"
+            )
+            v1.execSQL(
+                "INSERT INTO completions (questId, completedAtEpochMillis, periodStartEpochDay, source) " +
+                    "VALUES ('q-daily', 0, 20000, 'Manual')"
+            )
+        }
+
+        val v3 = helper.runMigrationsAndValidate(3, listOf(MIGRATION_1_2, MIGRATION_2_3))
+        v3.use { connection ->
+            connection.prepare(
+                "SELECT journalLinked, (SELECT attribute FROM completions WHERE questId = 'q-daily') " +
+                    "FROM quests WHERE id = 'q-daily'"
+            ).use { stmt ->
+                stmt.step()
+                assertEquals(0L, stmt.getLong(0))
+                assertEquals("Body", stmt.getText(1))
+            }
+        }
+    }
 }

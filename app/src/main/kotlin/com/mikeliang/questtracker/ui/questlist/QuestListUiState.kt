@@ -63,6 +63,8 @@ sealed interface QuestListEvent {
         val cadence: Cadence,
         val attribute: Attribute,
         val reminderTime: LocalTime?,
+        /** Opt-in: saving a journal entry auto-completes this quest for its period. */
+        val journalLinked: Boolean = false,
     ) : QuestListEvent
 
     /** The completion feedback has been displayed; clear it from state. */

@@ -7,6 +7,8 @@ import com.mikeliang.questtracker.core.model.AutoTracking
 import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.core.model.CompletionRecord
 import com.mikeliang.questtracker.core.model.CompletionSource
+import com.mikeliang.questtracker.core.model.JournalEntry
+import com.mikeliang.questtracker.core.model.JournalEntryId
 import com.mikeliang.questtracker.core.model.ProgressionTarget
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
@@ -40,10 +42,11 @@ fun recurringQuest(
     reminder: ReminderSchedule? = null,
     autoTracking: AutoTracking? = null,
     cadenceChangedOn: LocalDate? = null,
+    journalLinked: Boolean = false,
 ): Quest = Quest(
     id = QuestId(id),
     title = title,
-    kind = QuestKind.Recurring(cadence, type, attribute, progression),
+    kind = QuestKind.Recurring(cadence, type, attribute, progression, journalLinked),
     createdAt = createdAt,
     status = status,
     reminder = reminder,
@@ -106,5 +109,19 @@ fun completion(
 /** One completion per date, for building histories tersely. */
 fun completions(quest: Quest, vararg dates: LocalDate): List<CompletionRecord> =
     dates.map { completion(quest, it) }
+
+fun journalEntry(
+    id: String = "entry-1",
+    text: String = "Grateful for the rain.",
+    entryDate: LocalDate = date("2026-01-01"),
+    createdAt: Instant = entryDate.atTime(LocalTime.of(21, 0)).toInstant(ZoneOffset.UTC),
+    editedAt: Instant? = null,
+): JournalEntry = JournalEntry(
+    id = JournalEntryId(id),
+    text = text,
+    createdAt = createdAt,
+    entryDate = entryDate,
+    editedAt = editedAt,
+)
 
 fun date(iso: String): LocalDate = LocalDate.parse(iso)

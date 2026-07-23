@@ -586,6 +586,31 @@ never mutates state directly.
 
 ---
 
+## Phase 7b — Journaling & Quest Log [BUILT 2026-07]
+
+User-requested: write things down (gratitude / logging) and read entries back over
+days/months. Product decisions, recorded here because they diverge from the original
+plan (see the §8 amendment in the design foundation):
+
+- **Hybrid shape.** A standalone write-an-entry surface (usable any time) plus an
+  opt-in link: `QuestKind.Recurring.journalLinked` — saving an entry auto-completes
+  every active journal-linked quest for its current period, through the same
+  `QuestEngine.complete` path (period dedupe, frozen accrual, `Manual` source — the
+  user *did* manually do the thing). Sage's "One line of journal" preset ships linked;
+  existing installs opt in via the edit sheet (no title-matching backfill).
+- **Quest Log pulled forward from v1.5** as a third bottom-nav tab: entries
+  interleaved with completions, grouped by day, newest first (`:core`'s
+  `buildQuestLog`; completions land on the day they happened, not `periodStart`).
+  Unpaginated by design at v1 scale.
+- **Entries are the one mutable thing** (editable, deletable — they're the user's
+  words), but a completion banked by a save is an ordinary append-only record with no
+  back-reference: editing/deleting the entry never un-completes anything. The tick on
+  a journal-linked quest still works with no writing required.
+- Storage: `journal_entries` table (DB v3, `MIGRATION_2_3`), separate
+  `JournalRepository` seam so `QuestRepository`'s append-only contract stays clean.
+
+---
+
 ## Phase 8 — Polish & the first insight [DELEGATE selectively]
 
 - Widget (home-screen today-progress — high retention value per the Finch research).
@@ -596,6 +621,8 @@ never mutates state directly.
 - **Quest Log (v1.5, the deferred "calendar view"):** a journal-style timeline of
   past completions and upcoming scheduled quests — thematically right, and a view
   rather than a loop, so it waits until the core loop demonstrably retains.
+  *(Superseded: the past-completions half shipped early in Phase 7b as the journal's
+  reading surface. Still open for v1.5: upcoming scheduled quests in the timeline.)*
 
 ---
 

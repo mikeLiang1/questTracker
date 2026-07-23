@@ -36,7 +36,8 @@ class QuestEditsTest {
         attribute: Attribute = (quest.kind as QuestKind.Recurring).attribute,
         reminder: ReminderSchedule? = quest.reminder,
         target: TargetEdit = TargetEdit.Keep,
-    ) = QuestEdit.EditRecurring(title, cadence, attribute, reminder, target)
+        journalLinked: Boolean = (quest.kind as QuestKind.Recurring).journalLinked,
+    ) = QuestEdit.EditRecurring(title, cadence, attribute, reminder, target, journalLinked)
 
     @Test
     fun `a recurring edit applies title, attribute, cadence, and reminder`() {
@@ -206,6 +207,26 @@ class QuestEditsTest {
         assertTrue(canDeleteQuest(quest, emptyList()))
         assertTrue(canDeleteQuest(quest, listOf(completion(other, date("2026-07-10")))))
         assertFalse(canDeleteQuest(quest, listOf(completion(quest, date("2026-07-10")))))
+    }
+
+    @Test
+    fun `an edit can link and unlink the journal`() {
+        val quest = recurringQuest()
+
+        val linked = editQuest(quest, recurringEdit(quest, journalLinked = true), emptyList(), today)
+        assertTrue((linked.kind as QuestKind.Recurring).journalLinked)
+
+        val unlinked = editQuest(linked, recurringEdit(linked, journalLinked = false), emptyList(), today)
+        assertFalse((unlinked.kind as QuestKind.Recurring).journalLinked)
+    }
+
+    @Test
+    fun `an unrelated edit preserves the journal link`() {
+        val quest = recurringQuest(journalLinked = true)
+
+        val edited = editQuest(quest, recurringEdit(quest, title = "Renamed"), emptyList(), today)
+
+        assertTrue((edited.kind as QuestKind.Recurring).journalLinked)
     }
 
     @Test

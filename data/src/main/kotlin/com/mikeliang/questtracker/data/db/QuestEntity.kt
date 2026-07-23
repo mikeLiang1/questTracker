@@ -1,5 +1,6 @@
 package com.mikeliang.questtracker.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -29,4 +30,5 @@ data class QuestEntity(
     val autoTrackingMetric: String?,
     val autoTrackingDailyTarget: Double?,
     val cadenceChangedOnEpochDay: Long?,
+    @ColumnInfo(defaultValue = "0") val journalLinked: Boolean = false,
 )

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
@@ -36,6 +37,7 @@ import com.mikeliang.questtracker.ui.onboarding.OnboardingScreen
 import com.mikeliang.questtracker.ui.profile.ProfileScreen
 import com.mikeliang.questtracker.ui.questdetail.QuestDetailScreen
 import com.mikeliang.questtracker.ui.questlist.QuestListScreen
+import com.mikeliang.questtracker.ui.questlog.QuestLogScreen
 import com.mikeliang.questtracker.ui.theme.QuestTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -93,11 +95,11 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The app's destinations. Plain state, no nav library — two tabs and one detail
+     * The app's destinations. Plain state, no nav library — three tabs and one detail
      * layer don't need one. A non-null [openQuestId] shows the quest detail over the
      * current tab; back (or a tab tap) clears it.
      */
-    private enum class HomeTab { Today, Profile }
+    private enum class HomeTab { Today, Log, Profile }
 
     @Composable
     private fun HomeScaffold() {
@@ -114,6 +116,15 @@ class MainActivity : ComponentActivity() {
                         },
                         icon = { Icon(Icons.Filled.Home, contentDescription = null) },
                         label = { Text("Today") },
+                    )
+                    NavigationBarItem(
+                        selected = tab == HomeTab.Log,
+                        onClick = {
+                            tab = HomeTab.Log
+                            openQuestId = null
+                        },
+                        icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
+                        label = { Text("Log") },
                     )
                     NavigationBarItem(
                         selected = tab == HomeTab.Profile,
@@ -138,6 +149,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     when (tab) {
                         HomeTab.Today -> QuestListScreen(onOpenQuest = { openQuestId = it.value })
+                        HomeTab.Log -> QuestLogScreen(onOpenQuest = { openQuestId = it.value })
                         HomeTab.Profile -> ProfileScreen(onOpenChapter = { openQuestId = it.value })
                     }
                 }

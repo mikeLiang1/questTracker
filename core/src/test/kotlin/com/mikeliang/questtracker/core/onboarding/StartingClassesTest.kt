@@ -108,6 +108,26 @@ class StartingClassesTest {
     }
 
     @Test
+    fun `Sage's journal quest is journal-linked - writing an entry completes it`() {
+        val loadout = StartingClass.Sage.questLoadout(createdAt, countingIds())
+
+        val journal = loadout.single { it.title == "One line of journal" }
+        assertTrue((journal.kind as QuestKind.Recurring).journalLinked)
+    }
+
+    @ParameterizedTest
+    @EnumSource(StartingClass::class)
+    fun `no other preset quest is journal-linked`(startingClass: StartingClass) {
+        startingClass.questLoadout(createdAt, countingIds())
+            .filterNot { it.title == "One line of journal" }
+            .forEach { quest ->
+                assertTrue(!(quest.kind as QuestKind.Recurring).journalLinked) {
+                    "${quest.title} must not be journal-linked"
+                }
+            }
+    }
+
+    @Test
     fun `Adventurer loadout touches four attributes with a weekly social quest`() {
         val loadout = StartingClass.Adventurer.questLoadout(createdAt, countingIds())
 

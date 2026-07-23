@@ -143,6 +143,7 @@ class QuestListViewModel @Inject constructor(
                         cadence = event.cadence,
                         type = QuestType.Maintenance,
                         attribute = event.attribute,
+                        journalLinked = event.journalLinked,
                     ),
                     createdAt = clock.now(),
                     reminder = event.reminderTime?.let { reminderScheduleFor(event.cadence, it) },

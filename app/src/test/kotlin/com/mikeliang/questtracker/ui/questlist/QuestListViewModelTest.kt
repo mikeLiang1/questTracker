@@ -259,6 +259,44 @@ class QuestListViewModelTest {
     }
 
     @Test
+    fun `AddRecurringQuest carries the journal link into the stored kind`() = runTest {
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading }
+
+            vm.onEvent(
+                QuestListEvent.AddRecurringQuest(
+                    "One line of journal", Cadence.Daily, Attribute.Mind, null, journalLinked = true,
+                )
+            )
+
+            val state = awaitUntil { it.recurring.isNotEmpty() }
+            val kind = state.recurring.single().quest.kind as QuestKind.Recurring
+            assertTrue(kind.journalLinked)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `the tick on a journal-linked quest still completes with no writing required`() = runTest {
+        repository.seed(
+            recurringQuest(id = "journal", title = "One line of journal").let {
+                it.copy(kind = (it.kind as QuestKind.Recurring).copy(journalLinked = true))
+            }
+        )
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading }
+            vm.onEvent(QuestListEvent.CompleteQuest(QuestId("journal")))
+            awaitUntil { it.recurring.singleOrNull()?.completed == true }
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, repository.recordedCompletions.size)
+    }
+
+    @Test
     fun `daily quick-add reminder nudges every day`() = runTest {
         val vm = viewModel()
 

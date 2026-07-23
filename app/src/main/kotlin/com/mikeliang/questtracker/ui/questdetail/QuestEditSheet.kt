@@ -68,6 +68,8 @@ private fun RecurringEditSheet(
     var attribute by remember { mutableStateOf(kind.attribute) }
     var reminderTime by remember { mutableStateOf(existingReminder?.time) }
     var reminderDays by remember { mutableStateOf(existingReminder?.days ?: emptySet()) }
+    // Seeded from the quest so an unrelated edit never silently unlinks it.
+    var journalLinked by remember { mutableStateOf(kind.journalLinked) }
     var showTimePicker by remember { mutableStateOf(false) }
     // Maintenance can gain a target; Progression can drop its own. Never both.
     var addTarget by remember { mutableStateOf(false) }
@@ -95,6 +97,7 @@ private fun RecurringEditSheet(
                     attribute = attribute,
                     reminder = reminderTime?.let { ReminderSchedule.Recurring(it, reminderDays) },
                     target = targetEdit ?: TargetEdit.Keep,
+                    journalLinked = journalLinked,
                 )
             )
         )
@@ -138,6 +141,15 @@ private fun RecurringEditSheet(
                     },
                 )
             }
+
+            Spacer(Modifier.height(12.dp))
+            Text("Journal", style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(4.dp))
+            FilterChip(
+                selected = journalLinked,
+                onClick = { journalLinked = !journalLinked },
+                label = { Text("Completes when I journal") },
+            )
 
             Spacer(Modifier.height(12.dp))
             when (kind.type) {

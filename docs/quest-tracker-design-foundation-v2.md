@@ -209,6 +209,14 @@ Calendar view is **deferred to v1.5** — it's a view, not a loop, and nothing i
 retention evidence says calendars drive habit apps. The thematically-right version is a
 **Quest Log**: past completions + upcoming scheduled quests as a journal-style timeline.
 
+> **Amendment (2026-07, Phase 7b):** the Quest Log ships in v1 after all, as the home
+> of written journal entries (gratitude/logging) interleaved with completions — a write
+> surface needs a reading surface. This does not soften the §6 warning: free writing is
+> still never the *reflection* mechanic. Instead it feeds the loop — saving an entry
+> auto-completes any journal-linked quest (writing becomes evidence), entries are
+> editable/deletable while the completions they banked are permanent (§5), and a quest's
+> tick keeps working with no writing required (no friction, no punishment).
+
 ## 9. Social (deferred; design principles locked now)
 
 Not in v1 (avoids backend/auth/sync entirely). When it comes:
