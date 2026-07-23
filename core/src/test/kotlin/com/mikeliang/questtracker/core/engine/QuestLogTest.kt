@@ -105,6 +105,56 @@ class QuestLogTest {
     }
 
     @Test
+    fun `quest-scoped entries stay off the timeline - their completion row still marks the day`() {
+        val quest = recurringQuest(id = "journal", title = "One line of journal")
+        val scoped = journalEntry(
+            id = "scoped",
+            entryDate = date("2026-07-16"),
+            questIds = setOf(quest.id),
+        )
+        val freeform = journalEntry(id = "free", entryDate = date("2026-07-16"))
+
+        val log = buildQuestLog(
+            quests = listOf(quest),
+            completions = listOf(completion(quest, date("2026-07-16"))),
+            entries = listOf(scoped, freeform),
+            zone = utc,
+        )
+
+        val items = log.single().items
+        assertEquals(
+            listOf("free"),
+            items.filterIsInstance<QuestLogItem.Entry>().map { it.entry.id.value },
+        )
+        assertEquals(1, items.filterIsInstance<QuestLogItem.Completion>().size)
+    }
+
+    @Test
+    fun `journalEntriesFor returns a quest's entries newest first and nobody else's`() {
+        val questId = recurringQuest(id = "journal").id
+        val older = journalEntry(
+            id = "older",
+            entryDate = date("2026-07-15"),
+            questIds = setOf(questId),
+        )
+        val newer = journalEntry(
+            id = "newer",
+            entryDate = date("2026-07-16"),
+            questIds = setOf(questId, recurringQuest(id = "also").id),
+        )
+        val elsewhere = journalEntry(
+            id = "elsewhere",
+            entryDate = date("2026-07-16"),
+            questIds = setOf(recurringQuest(id = "other").id),
+        )
+        val freeform = journalEntry(id = "free", entryDate = date("2026-07-16"))
+
+        val entries = journalEntriesFor(questId, listOf(older, newer, elsewhere, freeform))
+
+        assertEquals(listOf("newer", "older"), entries.map { it.id.value })
+    }
+
+    @Test
     fun `entries group by their frozen entryDate regardless of createdAt's zone-shifted day`() {
         // Written at 23:30 local but createdAt is next-day UTC: entryDate wins.
         val entry = journalEntry(

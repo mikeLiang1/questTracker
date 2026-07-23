@@ -1,5 +1,6 @@
 package com.mikeliang.questtracker.ui.questdetail
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
@@ -44,14 +46,17 @@ import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.mikeliang.questtracker.core.engine.ConsistencyScore
 import com.mikeliang.questtracker.core.model.Cadence
+import com.mikeliang.questtracker.core.model.JournalEntry
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.model.QuestKind
 import com.mikeliang.questtracker.core.model.QuestStatus
 import com.mikeliang.questtracker.core.model.QuestType
 import com.mikeliang.questtracker.core.model.ReminderSchedule
+import com.mikeliang.questtracker.ui.questlog.WriteEntrySheet
 import dagger.hilt.android.lifecycle.withCreationCallback
 import java.text.NumberFormat
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
@@ -97,6 +102,7 @@ fun QuestDetailContent(
     var showEscalateDialog by remember { mutableStateOf(false) }
     var showRetireConfirm by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var editingEntry by remember { mutableStateOf<JournalEntry?>(null) }
 
     Scaffold(
         topBar = {
@@ -131,6 +137,7 @@ fun QuestDetailContent(
                     onEscalate = { showEscalateDialog = true },
                     onRetire = { showRetireConfirm = true },
                     onDelete = { showDeleteConfirm = true },
+                    onOpenEntry = { editingEntry = it },
                 )
             }
         }
@@ -143,6 +150,21 @@ fun QuestDetailContent(
             onEvent = { event ->
                 showEditSheet = false
                 onEvent(event)
+            },
+        )
+    }
+
+    editingEntry?.let { entry ->
+        WriteEntrySheet(
+            onDismiss = { editingEntry = null },
+            onSave = { text, _ ->
+                editingEntry = null
+                onEvent(QuestDetailEvent.EditJournalEntry(entry.id, text))
+            },
+            initialText = entry.text,
+            onDelete = {
+                editingEntry = null
+                onEvent(QuestDetailEvent.DeleteJournalEntry(entry.id))
             },
         )
     }
@@ -209,6 +231,7 @@ private fun DetailList(
     onEscalate: () -> Unit,
     onRetire: () -> Unit,
     onDelete: () -> Unit,
+    onOpenEntry: (JournalEntry) -> Unit,
 ) {
     val kind = quest.kind as? QuestKind.Recurring
     LazyColumn(
@@ -219,6 +242,19 @@ private fun DetailList(
         item { IdentityCard(quest, kind) }
         item { EvidenceCard(state, kind) }
         item { ReminderCard(quest.reminder) }
+        if (state.journalEntries.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Journal",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            items(state.journalEntries, key = { it.id.value }) { entry ->
+                JournalEntryCard(entry, onOpenEntry)
+            }
+        }
         if (kind?.type == QuestType.Progression && quest.status == QuestStatus.Active) {
             item { ProgressionCard(kind, onEscalate) }
         }
@@ -241,6 +277,35 @@ private fun DetailList(
         }
     }
 }
+
+/**
+ * One journal entry written toward this quest — the entry's home now that
+ * quest-scoped entries stay off the main timeline. Tap to edit or delete; either
+ * touches only the entry, never the completion it banked.
+ */
+@Composable
+private fun JournalEntryCard(entry: JournalEntry, onOpenEntry: (JournalEntry) -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenEntry(entry) },
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(entry.text, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = buildString {
+                    append(entryStamp.format(entry.createdAt.atZone(ZoneId.systemDefault())))
+                    if (entry.editedAt != null) append(" · edited")
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private val entryStamp = DateTimeFormatter.ofPattern("MMM d, h:mm a")
 
 @Composable
 private fun IdentityCard(quest: Quest, kind: QuestKind.Recurring?) {

@@ -198,20 +198,107 @@ class QuestLogViewModelTest {
     }
 
     @Test
-    fun `the timeline interleaves entries and completions with today set`() = runTest {
+    fun `linked quests still open this period surface as write-sheet options`() = runTest {
+        questRepository.seed(
+            recurringQuest(id = "journal", title = "One line of journal", journalLinked = true),
+            recurringQuest(id = "gym", title = "Gym hour"),
+        )
+        val vm = viewModel()
+
+        vm.uiState.test {
+            val state = awaitUntil { !it.loading }
+            assertEquals(
+                listOf(QuestLogUiState.LinkedQuestOption(QuestId("journal"), "One line of journal")),
+                state.linkedOptions,
+            )
+
+            // Once banked, the option disappears — nothing left for an entry to complete.
+            vm.onEvent(QuestLogEvent.SaveEntry("One good line."))
+            awaitUntil { it.linkedOptions.isEmpty() }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a save narrowed by the sheet's selection banks only the chosen quest`() = runTest {
+        questRepository.seed(
+            recurringQuest(id = "journal", journalLinked = true),
+            recurringQuest(id = "gratitude", journalLinked = true),
+        )
+        val vm = viewModel()
+
+        vm.onEvent(QuestLogEvent.SaveEntry("Only the journal.", countToward = setOf(QuestId("journal"))))
+
+        assertEquals(listOf("journal"), questRepository.recordedCompletions.map { it.questId.value })
+    }
+
+    @Test
+    fun `a save with an empty selection banks nothing but still saves the entry`() = runTest {
+        questRepository.seed(recurringQuest(id = "journal", journalLinked = true))
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading }
+            vm.onEvent(QuestLogEvent.SaveEntry("Just words.", countToward = emptySet()))
+            val state = awaitUntil { it.feedback != null }
+            assertEquals(QuestLogFeedback.EntrySaved, state.feedback)
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(1, journalRepository.storedEntries.size)
+        assertTrue(questRepository.recordedCompletions.isEmpty())
+    }
+
+    @Test
+    fun `a save stamps the entry with the quests it actually banked`() = runTest {
+        questRepository.seed(
+            recurringQuest(id = "journal", journalLinked = true),
+            recurringQuest(id = "gratitude", journalLinked = true),
+        )
+        val vm = viewModel()
+
+        vm.onEvent(QuestLogEvent.SaveEntry("Only one.", countToward = setOf(QuestId("journal"))))
+
+        assertEquals(setOf(QuestId("journal")), journalRepository.storedEntries.single().questIds)
+    }
+
+    @Test
+    fun `a free-form save carries no quest scope`() = runTest {
+        questRepository.seed(recurringQuest(id = "gym")) // nothing linked
+        val vm = viewModel()
+
+        vm.onEvent(QuestLogEvent.SaveEntry("Just a note."))
+
+        assertTrue(journalRepository.storedEntries.single().questIds.isEmpty())
+    }
+
+    @Test
+    fun `a scoped entry stays off the timeline - only its completion marks the day`() = runTest {
         questRepository.seed(recurringQuest(id = "journal", journalLinked = true))
         val vm = viewModel()
 
         vm.uiState.test {
             awaitUntil { !it.loading }
             vm.onEvent(QuestLogEvent.SaveEntry("One good line."))
-            val state = awaitUntil { it.days.isNotEmpty() && it.days.single().items.size == 2 }
+            val state = awaitUntil { it.days.isNotEmpty() }
 
             assertEquals(LocalDate.parse("2026-07-17"), state.today)
             val day = state.days.single()
             assertEquals(LocalDate.parse("2026-07-17"), day.date)
-            assertTrue(day.items.any { it is QuestLogItem.Entry })
-            assertTrue(day.items.any { it is QuestLogItem.Completion })
+            assertTrue(day.items.single() is QuestLogItem.Completion)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a free-form entry shows on the timeline`() = runTest {
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading }
+            vm.onEvent(QuestLogEvent.SaveEntry("Just words."))
+            val state = awaitUntil { it.days.isNotEmpty() }
+
+            assertTrue(state.days.single().items.single() is QuestLogItem.Entry)
             cancelAndIgnoreRemainingEvents()
         }
     }

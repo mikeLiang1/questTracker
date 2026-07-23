@@ -116,12 +116,14 @@ fun journalEntry(
     entryDate: LocalDate = date("2026-01-01"),
     createdAt: Instant = entryDate.atTime(LocalTime.of(21, 0)).toInstant(ZoneOffset.UTC),
     editedAt: Instant? = null,
+    questIds: Set<QuestId> = emptySet(),
 ): JournalEntry = JournalEntry(
     id = JournalEntryId(id),
     text = text,
     createdAt = createdAt,
     entryDate = entryDate,
     editedAt = editedAt,
+    questIds = questIds,
 )
 
 fun date(iso: String): LocalDate = LocalDate.parse(iso)

@@ -299,8 +299,9 @@ iOS health adapter. Days, not weeks. Also reads well in interviews.
 - [ ] v1 quest catalogue: which auto-tracked + which manual ship first.
 - [ ] Verify Health Connect min Android version.
 - [ ] Design the rest-day absorption rule precisely (how many, what cadence).
-- [ ] Spec the monthly reflection screen (the 90-second flow, and what "retire /
-      escalate / add" does mechanically).
+- [x] Spec the monthly reflection screen (the 90-second flow, and what "retire /
+      escalate / add" does mechanically). **Done — see the build plan's Phase 7
+      locked decisions.**
 - [ ] The 3–5 core screens and their states.
 - [ ] Decide what v1 ships of variable insight (even one hardcoded pattern-detector
       may be enough to prove the concept).

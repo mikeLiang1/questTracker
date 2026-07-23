@@ -5,8 +5,10 @@ import com.mikeliang.questtracker.core.model.CompletionRecord
 import com.mikeliang.questtracker.core.model.CompletionSource
 import com.mikeliang.questtracker.core.model.JournalEntry
 import com.mikeliang.questtracker.core.model.Quest
+import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.model.QuestKind
 import com.mikeliang.questtracker.core.model.QuestStatus
+import java.time.YearMonth
 import java.time.ZonedDateTime
 
 /** Result of attempting a completion. Repeat completions are a no-op, never an error. */
@@ -100,16 +102,27 @@ class QuestEngine(private val clock: Clock) {
     }
 
     /**
+     * The journal-linked quests a new entry written now could complete — what the
+     * write sheet offers as pre-selected options.
+     */
+    fun journalCandidates(
+        quests: List<Quest>,
+        completions: List<CompletionRecord>,
+    ): List<Quest> = journalLinkedCandidates(quests, completions, clock.today())
+
+    /**
      * The completions a just-saved journal entry banks: every active journal-linked
      * recurring quest not already done this period, each through [complete] (so
-     * period dedupe and frozen accrual apply). Caller persists every record in
+     * period dedupe and frozen accrual apply), optionally narrowed to the quests the
+     * user left selected ([only]; null = all linked). Caller persists every record in
      * [JournalSaveResult.records]; empty records is a normal outcome, not an error.
      */
     fun completeFromJournalEntry(
         quests: List<Quest>,
         completions: List<CompletionRecord>,
+        only: Set<QuestId>? = null,
     ): JournalSaveResult =
-        completeJournalLinkedQuests(quests) { quest, newRecords ->
+        completeJournalLinkedQuests(quests, only) { quest, newRecords ->
             complete(quest, quests, completions + newRecords, CompletionSource.Manual)
         }
 
@@ -138,4 +151,12 @@ class QuestEngine(private val clock: Clock) {
     /** Next-due reminders across [quests] from this moment, soonest first. */
     fun dueReminders(quests: List<Quest>, completions: List<CompletionRecord>): List<DueReminder> =
         dueRemindersAfter(quests, completions, ZonedDateTime.ofInstant(clock.now(), clock.zone()))
+
+    /** The monthly reflection's trajectory summary — last calendar month in review. */
+    fun reflection(quests: List<Quest>, completions: List<CompletionRecord>): ReflectionSummary =
+        buildReflectionSummary(quests, completions, clock.today(), clock.zone())
+
+    /** Whether the monthly reflection banner should be surfaced right now. */
+    fun reflectionDue(completions: List<CompletionRecord>, lastHandledMonth: YearMonth?): Boolean =
+        isReflectionDue(completions, clock.today(), lastHandledMonth)
 }

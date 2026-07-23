@@ -16,8 +16,11 @@ import com.mikeliang.questtracker.core.model.QuestKind
 import com.mikeliang.questtracker.core.model.QuestStatus
 import com.mikeliang.questtracker.core.model.QuestType
 import com.mikeliang.questtracker.core.model.ReminderSchedule
+import com.mikeliang.questtracker.core.model.JournalEntry
+import com.mikeliang.questtracker.core.model.JournalEntryId
 import com.mikeliang.questtracker.ui.questlist.FakeQuestRepository
 import com.mikeliang.questtracker.ui.questlist.FixedClock
+import com.mikeliang.questtracker.ui.questlog.FakeJournalRepository
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -40,10 +43,12 @@ class QuestDetailViewModelTest {
 
     private val clock = FixedClock() // 2026-07-17 (a Friday), UTC
     private val repository = FakeQuestRepository()
+    private val journalRepository = FakeJournalRepository()
 
     private fun viewModel(id: String = "quest-1") = QuestDetailViewModel(
         questIdValue = id,
         repository = repository,
+        journalRepository = journalRepository,
         engine = QuestEngine(clock),
         clock = clock,
     )
@@ -186,6 +191,60 @@ class QuestDetailViewModelTest {
 
         assertTrue((repository.storedQuests.single().kind as QuestKind.Recurring).journalLinked)
     }
+
+    @Test
+    fun `journal entries scoped to this quest surface newest first`() = runTest {
+        repository.seed(recurringQuest())
+        journalRepository.upsertEntry(entry(id = "older", text = "First line", at = "2026-07-15T21:00:00Z"))
+        journalRepository.upsertEntry(entry(id = "newer", text = "Second line", at = "2026-07-16T21:00:00Z"))
+        journalRepository.upsertEntry(
+            entry(id = "other", text = "Different quest", at = "2026-07-16T22:00:00Z", questId = "someone-else")
+        )
+
+        viewModel().uiState.test {
+            val state = awaitUntil { it.journalEntries.isNotEmpty() }
+            assertEquals(listOf("newer", "older"), state.journalEntries.map { it.id.value })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `deleting a journal entry from the quest leaves its completion banked`() = runTest {
+        val quest = recurringQuest()
+        repository.seed(quest)
+        repository.recordCompletion(completion(quest, LocalDate.parse("2026-07-16")))
+        journalRepository.upsertEntry(entry(id = "e1", text = "Written, then regretted."))
+
+        viewModel().onEvent(QuestDetailEvent.DeleteJournalEntry(JournalEntryId("e1")))
+
+        assertTrue(journalRepository.storedEntries.isEmpty())
+        assertEquals(1, repository.recordedCompletions.size)
+    }
+
+    @Test
+    fun `editing a journal entry rewrites text and stamps editedAt`() = runTest {
+        repository.seed(recurringQuest())
+        journalRepository.upsertEntry(entry(id = "e1", text = "First draft"))
+
+        viewModel().onEvent(QuestDetailEvent.EditJournalEntry(JournalEntryId("e1"), " Second draft "))
+
+        val edited = journalRepository.storedEntries.single()
+        assertEquals("Second draft", edited.text)
+        assertEquals(clock.now(), edited.editedAt)
+    }
+
+    private fun entry(
+        id: String,
+        text: String,
+        at: String = "2026-07-16T21:00:00Z",
+        questId: String = "quest-1",
+    ) = JournalEntry(
+        id = JournalEntryId(id),
+        text = text,
+        createdAt = Instant.parse(at),
+        entryDate = LocalDate.parse(at.substring(0, 10)),
+        questIds = setOf(QuestId(questId)),
+    )
 
     @Test
     fun `a cadence edit stamps cadenceChangedOn with the clock's today`() = runTest {

@@ -20,6 +20,8 @@ data class QuestListUiState(
     val doneForToday: Boolean = false,
     /** Transient identity-framed copy from :core; cleared via [QuestListEvent.FeedbackShown]. */
     val feedback: CompletionFeedback? = null,
+    /** True while the monthly reflection is surfaced (never forced) as a banner. */
+    val reflectionDue: Boolean = false,
 ) {
 
     /** A recurring quest due this period, with live progress when auto-tracked. */

@@ -4,6 +4,7 @@ import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.CompletionRecord
 import com.mikeliang.questtracker.core.model.JournalEntry
 import com.mikeliang.questtracker.core.model.Quest
+import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.model.QuestKind
 import java.time.Instant
 import java.time.LocalDate
@@ -42,10 +43,15 @@ data class QuestLogDay(
 )
 
 /**
- * The Quest Log: journal entries interleaved with quest completions, grouped by day,
- * days and items newest-first. Entries group by their frozen [JournalEntry.entryDate];
- * completions by the local date of [CompletionRecord.completedAt] in [zone] — the day
- * it happened, not `periodStart` (a weekly banked on Wednesday reads on Wednesday).
+ * The Quest Log: free-form journal entries interleaved with quest completions,
+ * grouped by day, days and items newest-first. Entries group by their frozen
+ * [JournalEntry.entryDate]; completions by the local date of
+ * [CompletionRecord.completedAt] in [zone] — the day it happened, not `periodStart`
+ * (a weekly banked on Wednesday reads on Wednesday).
+ *
+ * Quest-scoped entries (non-empty [JournalEntry.questIds]) are excluded: they live on
+ * their quest's detail screen (see [journalEntriesFor]), while the quest's completion
+ * row still marks the day here.
  *
  * Unpaginated by design: a heavy user is ~10 completions plus a few entries per day
  * (4–5k small rows/year), well within a Flow + LazyColumn's comfort — revisit with
@@ -59,7 +65,7 @@ fun buildQuestLog(
 ): List<QuestLogDay> {
     val questsById = quests.associateBy { it.id }
     val dated: List<Pair<LocalDate, QuestLogItem>> =
-        entries.map { it.entryDate to QuestLogItem.Entry(it) } +
+        entries.filter { it.questIds.isEmpty() }.map { it.entryDate to QuestLogItem.Entry(it) } +
             completions.map { record ->
                 val quest = questsById[record.questId]
                 val item = QuestLogItem.Completion(
@@ -75,3 +81,11 @@ fun buildQuestLog(
         .toSortedMap(compareByDescending { it })
         .map { (date, items) -> QuestLogDay(date, items.sortedByDescending { it.at }) }
 }
+
+/**
+ * The journal entries that counted toward [questId], newest first — the quest detail
+ * screen's journal section. The complement of the main timeline's entry set: an entry
+ * scoped to several quests appears on each of their detail screens.
+ */
+fun journalEntriesFor(questId: QuestId, entries: List<JournalEntry>): List<JournalEntry> =
+    entries.filter { questId in it.questIds }.sortedByDescending { it.createdAt }

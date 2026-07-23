@@ -7,13 +7,16 @@ import com.mikeliang.questtracker.core.engine.QuestEdit
 import com.mikeliang.questtracker.core.engine.QuestEngine
 import com.mikeliang.questtracker.core.engine.canDeleteQuest
 import com.mikeliang.questtracker.core.engine.escalate
+import com.mikeliang.questtracker.core.engine.journalEntriesFor
 import com.mikeliang.questtracker.core.engine.lifetimeCompletionCount
 import com.mikeliang.questtracker.core.engine.retireQuest
+import com.mikeliang.questtracker.core.model.JournalEntryId
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.model.QuestKind
 import com.mikeliang.questtracker.core.model.QuestStatus
 import com.mikeliang.questtracker.core.model.ReminderSchedule
+import com.mikeliang.questtracker.core.repository.JournalRepository
 import com.mikeliang.questtracker.core.repository.QuestRepository
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
@@ -41,6 +44,7 @@ class QuestDetailViewModel @AssistedInject constructor(
     // method name, which Dagger's @AssistedFactory can't process.
     @Assisted questIdValue: String,
     private val repository: QuestRepository,
+    private val journalRepository: JournalRepository,
     private val engine: QuestEngine,
     private val clock: Clock,
 ) : ViewModel() {
@@ -57,8 +61,9 @@ class QuestDetailViewModel @AssistedInject constructor(
     val uiState: StateFlow<QuestDetailUiState> = combine(
         repository.observeQuests(),
         repository.observeCompletions(),
+        journalRepository.observeEntries(),
         closed,
-    ) { quests, completions, isClosed ->
+    ) { quests, completions, entries, isClosed ->
         val quest = quests.firstOrNull { it.id == questId }
         if (quest == null) {
             // Deleted (or never existed): nothing to show, ask the host to pop back.
@@ -75,6 +80,7 @@ class QuestDetailViewModel @AssistedInject constructor(
                 },
                 canDelete = quest.status == QuestStatus.Active && canDeleteQuest(quest, records),
                 closed = isClosed,
+                journalEntries = journalEntriesFor(questId, entries),
             )
         }
     }.stateIn(
@@ -90,6 +96,24 @@ class QuestDetailViewModel @AssistedInject constructor(
             is QuestDetailEvent.Escalate -> escalateTo(event.newAmount)
             QuestDetailEvent.Retire -> retire()
             QuestDetailEvent.Delete -> delete()
+            is QuestDetailEvent.EditJournalEntry -> editJournalEntry(event.id, event.text)
+            is QuestDetailEvent.DeleteJournalEntry -> deleteJournalEntry(event.id)
+        }
+    }
+
+    private fun editJournalEntry(id: JournalEntryId, text: String) {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            val existing = journalRepository.getEntry(id) ?: return@launch
+            journalRepository.upsertEntry(existing.copy(text = trimmed, editedAt = clock.now()))
+        }
+    }
+
+    /** Removes the entry only — the completion it counted toward stays banked. */
+    private fun deleteJournalEntry(id: JournalEntryId) {
+        viewModelScope.launch {
+            journalRepository.deleteEntry(id)
         }
     }
 

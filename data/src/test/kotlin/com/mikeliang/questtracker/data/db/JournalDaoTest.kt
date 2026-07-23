@@ -3,6 +3,7 @@ package com.mikeliang.questtracker.data.db
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.data.journalEntry
 import com.mikeliang.questtracker.data.toDomain
 import com.mikeliang.questtracker.data.toEntity
@@ -41,6 +42,18 @@ class JournalDaoTest {
     @Test
     fun `upsert then getEntry round-trips an entry`() = runTest {
         val entry = journalEntry(id = "e1", text = "Walked in the rain and liked it.")
+
+        dao.upsert(entry.toEntity())
+
+        assertEquals(entry, dao.getEntry("e1")?.toDomain())
+    }
+
+    @Test
+    fun `quest-scoped entries round-trip their quest ids`() = runTest {
+        val entry = journalEntry(
+            id = "e1",
+            questIds = setOf(QuestId("quest-a"), QuestId("quest-b")),
+        )
 
         dao.upsert(entry.toEntity())
 

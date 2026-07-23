@@ -85,3 +85,26 @@ val MIGRATION_2_3 = object : Migration(2, 3) {
         statements.forEach(connection::execSQL)
     }
 }
+
+/**
+ * v3 → v4 (Phase 7b follow-up): quest-scoped journal entries.
+ *
+ * - `journal_entries.linkedQuestIds` — comma-joined quest ids the entry counted
+ *   toward, frozen at save. Scoped entries move off the main Quest Log timeline onto
+ *   their quest's detail screen. Null for every existing entry (they predate scoping,
+ *   so they stay free-form on the timeline — nothing the user can see is taken away).
+ */
+val MIGRATION_3_4 = object : Migration(3, 4) {
+
+    private val statements = listOf(
+        "ALTER TABLE journal_entries ADD COLUMN linkedQuestIds TEXT",
+    )
+
+    override fun migrate(db: SupportSQLiteDatabase) {
+        statements.forEach(db::execSQL)
+    }
+
+    override fun migrate(connection: SQLiteConnection) {
+        statements.forEach(connection::execSQL)
+    }
+}

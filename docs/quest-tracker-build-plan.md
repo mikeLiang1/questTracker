@@ -600,6 +600,39 @@ never mutates state directly.
   repository state; skipping produces no state change and re-surfaces next month.
 ```
 
+### Phase 7 decisions (locked during implementation)
+
+- **Trigger rule:** the banner surfaces on the Today tab when any completion's
+  `periodStart` predates the current calendar month and the current month hasn't been
+  handled. "Handled" = completed *or* skipped, stored as a last-handled `YearMonth`
+  in an :app DataStore store (`ReflectionStateStore`, same seam as onboarding's) —
+  app-shell state, not domain state. A mid-month install therefore gets its first
+  reflection on the 1st of the next month, reviewing a partial first month; that
+  beats waiting up to two months for a "full" one.
+- **The flow reviews the previous calendar month** (`:core`'s
+  `buildReflectionSummary`): per active recurring quest — completions in the month
+  (deduped by period, credited to the day they happened), consistency **as of month
+  end** (the elapsed days of the month in progress never drag the reviewed score
+  down), and escalated-that-month detection derived purely from the frozen
+  `escalationLevel` on records. Plus per-attribute points earned in the month, priced
+  by replaying the accrual fold so diminishing returns match what was actually
+  banked. Quests created after the month ended get no row; quests retired since
+  still contribute the gains they banked.
+- **"Barely moved" is a gentle callout, not a verdict:** lowest consistency rate
+  (ties → fewest completions), rendered as "Quietest quest this month". Never shown
+  for a lone quest or a clean sweep — quiet is information, not shame.
+- **One screen, one question** ("Which of these still points where you want to go?"):
+  each quest row carries Keep (default) / Raise the bar (progression quests only,
+  amount dialog) / Retire chips. Choices stay pending until **Done**, which applies
+  them through `retireQuest` / `escalate` and marks the month handled. Adds reuse
+  the quick-add sheet (shared `questFromQuickAdd` shaping) and apply immediately —
+  a new commitment shouldn't evaporate if the user then skips the rest.
+- **Skipping is first-class:** back, the close icon, or "Skip this month" all mark
+  the month handled with zero repository changes; the banner re-arms next month.
+  Switching tabs mid-flow neither applies nor skips — the banner simply stays.
+- Full-screen overlay in MainActivity's plain-state navigation (same pattern as
+  quest detail), not a bottom sheet — the trajectory summary needs the room.
+
 ---
 
 ## Phase 7b — Journaling & Quest Log [BUILT 2026-07]
@@ -614,6 +647,9 @@ plan (see the §8 amendment in the design foundation):
   `QuestEngine.complete` path (period dedupe, frozen accrual, `Manual` source — the
   user *did* manually do the thing). Sage's "One line of journal" preset ships linked;
   existing installs opt in via the edit sheet (no title-matching backfill).
+  The write sheet makes the link visible: linked quests still open this period appear
+  as pre-selected "Counts toward" chips, and any can be unticked per entry. Selection
+  only narrows — it can never complete an unlinked quest.
 - **Quest Log pulled forward from v1.5** as a third bottom-nav tab: entries
   interleaved with completions, grouped by day, newest first (`:core`'s
   `buildQuestLog`; completions land on the day they happened, not `periodStart`).

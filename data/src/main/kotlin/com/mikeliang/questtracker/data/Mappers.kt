@@ -127,6 +127,7 @@ fun JournalEntry.toEntity(): JournalEntryEntity = JournalEntryEntity(
     createdAtEpochMillis = createdAt.toEpochMilli(),
     entryDateEpochDay = entryDate.toEpochDay(),
     editedAtEpochMillis = editedAt?.toEpochMilli(),
+    linkedQuestIds = questIds.takeIf { it.isNotEmpty() }?.joinToString(",") { it.value },
 )
 
 fun JournalEntryEntity.toDomain(): JournalEntry = JournalEntry(
@@ -135,4 +136,9 @@ fun JournalEntryEntity.toDomain(): JournalEntry = JournalEntry(
     createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
     entryDate = LocalDate.ofEpochDay(entryDateEpochDay),
     editedAt = editedAtEpochMillis?.let { Instant.ofEpochMilli(it) },
+    questIds = linkedQuestIds.orEmpty()
+        .split(",")
+        .filter { it.isNotBlank() }
+        .map { QuestId(it) }
+        .toSet(),
 )

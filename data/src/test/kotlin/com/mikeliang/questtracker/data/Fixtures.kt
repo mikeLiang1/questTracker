@@ -60,12 +60,14 @@ fun journalEntry(
     entryDate: LocalDate = LocalDate.parse("2026-01-01"),
     createdAt: Instant = entryDate.atStartOfDay(java.time.ZoneOffset.UTC).toInstant(),
     editedAt: Instant? = null,
+    questIds: Set<QuestId> = emptySet(),
 ): JournalEntry = JournalEntry(
     id = JournalEntryId(id),
     text = text,
     createdAt = createdAt,
     entryDate = entryDate,
     editedAt = editedAt,
+    questIds = questIds,
 )
 
 fun completion(

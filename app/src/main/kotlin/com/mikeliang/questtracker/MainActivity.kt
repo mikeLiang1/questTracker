@@ -37,6 +37,7 @@ import com.mikeliang.questtracker.ui.onboarding.OnboardingScreen
 import com.mikeliang.questtracker.ui.profile.ProfileScreen
 import com.mikeliang.questtracker.ui.questdetail.QuestDetailScreen
 import com.mikeliang.questtracker.ui.questlist.QuestListScreen
+import com.mikeliang.questtracker.ui.reflection.ReflectionScreen
 import com.mikeliang.questtracker.ui.questlog.QuestLogScreen
 import com.mikeliang.questtracker.ui.theme.QuestTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -95,9 +96,11 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * The app's destinations. Plain state, no nav library — three tabs and one detail
-     * layer don't need one. A non-null [openQuestId] shows the quest detail over the
-     * current tab; back (or a tab tap) clears it.
+     * The app's destinations. Plain state, no nav library — three tabs and two
+     * overlay layers don't need one. A non-null [openQuestId] shows the quest detail
+     * over the current tab; [showReflection] shows the monthly reflection the same
+     * way. Back inside the reflection skips it (its own BackHandler); a tab tap just
+     * puts it away without skipping, so the banner stays armed.
      */
     private enum class HomeTab { Today, Log, Profile }
 
@@ -105,6 +108,7 @@ class MainActivity : ComponentActivity() {
     private fun HomeScaffold() {
         var tab by rememberSaveable { mutableStateOf(HomeTab.Today) }
         var openQuestId by rememberSaveable { mutableStateOf<String?>(null) }
+        var showReflection by rememberSaveable { mutableStateOf(false) }
         Scaffold(
             bottomBar = {
                 NavigationBar {
@@ -113,6 +117,7 @@ class MainActivity : ComponentActivity() {
                         onClick = {
                             tab = HomeTab.Today
                             openQuestId = null
+                            showReflection = false
                         },
                         icon = { Icon(Icons.Filled.Home, contentDescription = null) },
                         label = { Text("Today") },
@@ -122,6 +127,7 @@ class MainActivity : ComponentActivity() {
                         onClick = {
                             tab = HomeTab.Log
                             openQuestId = null
+                            showReflection = false
                         },
                         icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
                         label = { Text("Log") },
@@ -131,6 +137,7 @@ class MainActivity : ComponentActivity() {
                         onClick = {
                             tab = HomeTab.Profile
                             openQuestId = null
+                            showReflection = false
                         },
                         icon = { Icon(Icons.Filled.Person, contentDescription = null) },
                         label = { Text("Profile") },
@@ -140,15 +147,20 @@ class MainActivity : ComponentActivity() {
         ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                 val questId = openQuestId
-                if (questId != null) {
-                    BackHandler { openQuestId = null }
-                    QuestDetailScreen(
-                        questId = QuestId(questId),
-                        onClose = { openQuestId = null },
-                    )
-                } else {
-                    when (tab) {
-                        HomeTab.Today -> QuestListScreen(onOpenQuest = { openQuestId = it.value })
+                when {
+                    showReflection -> ReflectionScreen(onClose = { showReflection = false })
+                    questId != null -> {
+                        BackHandler { openQuestId = null }
+                        QuestDetailScreen(
+                            questId = QuestId(questId),
+                            onClose = { openQuestId = null },
+                        )
+                    }
+                    else -> when (tab) {
+                        HomeTab.Today -> QuestListScreen(
+                            onOpenQuest = { openQuestId = it.value },
+                            onOpenReflection = { showReflection = true },
+                        )
                         HomeTab.Log -> QuestLogScreen(onOpenQuest = { openQuestId = it.value })
                         HomeTab.Profile -> ProfileScreen(onOpenChapter = { openQuestId = it.value })
                     }

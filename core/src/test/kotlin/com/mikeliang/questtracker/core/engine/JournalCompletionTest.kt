@@ -6,6 +6,7 @@ import com.mikeliang.questtracker.core.date
 import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.core.model.CompletionSource
+import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.model.QuestStatus
 import com.mikeliang.questtracker.core.recurringQuest
 import com.mikeliang.questtracker.core.sideQuest
@@ -90,6 +91,61 @@ class JournalCompletionTest {
     @Test
     fun `no journal-linked quests means an empty, feedback-free result`() {
         val result = engine.completeFromJournalEntry(listOf(recurringQuest()), emptyList())
+
+        assertTrue(result.records.isEmpty())
+        assertNull(result.feedback)
+    }
+
+    @Test
+    fun `candidates are the active linked quests not yet banked this period`() {
+        val open = recurringQuest(id = "open", journalLinked = true)
+        val banked = recurringQuest(id = "banked", journalLinked = true)
+        val unlinked = recurringQuest(id = "unlinked")
+        val retired = recurringQuest(id = "retired", journalLinked = true, status = QuestStatus.Retired)
+        val side = sideQuest(id = "side")
+        val history = completions(banked, date("2026-07-16"))
+
+        val candidates = engine.journalCandidates(listOf(open, banked, unlinked, retired, side), history)
+
+        assertEquals(listOf("open"), candidates.map { it.id.value })
+    }
+
+    @Test
+    fun `a weekly linked quest banked earlier this week is not a candidate`() {
+        val weekly = recurringQuest(id = "weekly", cadence = Cadence.Weekly, journalLinked = true)
+        val history = completions(weekly, date("2026-07-13")) // Monday of the current week.
+
+        assertTrue(engine.journalCandidates(listOf(weekly), history).isEmpty())
+    }
+
+    @Test
+    fun `selection narrows the save to the chosen quests`() {
+        val journal = recurringQuest(id = "journal", journalLinked = true)
+        val gratitude = recurringQuest(id = "gratitude", journalLinked = true)
+
+        val result = engine.completeFromJournalEntry(
+            listOf(journal, gratitude),
+            emptyList(),
+            only = setOf(QuestId("journal")),
+        )
+
+        assertEquals(listOf("journal"), result.records.map { it.questId.value })
+    }
+
+    @Test
+    fun `selection can never reach an unlinked quest`() {
+        val gym = recurringQuest(id = "gym") // not journal-linked
+
+        val result = engine.completeFromJournalEntry(listOf(gym), emptyList(), only = setOf(QuestId("gym")))
+
+        assertTrue(result.records.isEmpty())
+    }
+
+    @Test
+    fun `an empty selection saves nothing - the entry alone is the outcome`() {
+        val journal = recurringQuest(id = "journal", journalLinked = true)
+
+        val result = engine.completeFromJournalEntry(listOf(journal), emptyList(), only = emptySet())
 
         assertTrue(result.records.isEmpty())
         assertNull(result.feedback)

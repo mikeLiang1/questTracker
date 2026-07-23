@@ -20,6 +20,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.YearMonth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -40,12 +41,14 @@ class QuestListViewModelTest {
     private val clock = FixedClock() // 2026-07-17 (a Friday), UTC
     private val repository = FakeQuestRepository()
     private val healthSource = ScriptedHealthSource()
+    private val reflectionStore = FakeReflectionStateStore()
 
     private fun viewModel() = QuestListViewModel(
         repository = repository,
         engine = QuestEngine(clock),
         healthSource = healthSource,
         clock = clock,
+        reflectionStateStore = reflectionStore,
     )
 
     @BeforeEach
@@ -396,6 +399,77 @@ class QuestListViewModelTest {
         vm.uiState.test {
             val state = awaitUntil { it.recurring.isNotEmpty() }
             assertNull(state.recurring.single().progress)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    // --- reflection banner --------------------------------------------------
+
+    /** A completion credited to June — history from before the current (July) month. */
+    private suspend fun bankJuneCompletion() {
+        repository.recordCompletion(
+            CompletionRecord(
+                questId = QuestId("quest-1"),
+                completedAt = Instant.parse("2026-06-10T09:00:00Z"),
+                periodStart = LocalDate.parse("2026-06-10"),
+                source = CompletionSource.Manual,
+            )
+        )
+    }
+
+    @Test
+    fun `reflection surfaces once history predates the current month`() = runTest {
+        repository.seed(recurringQuest())
+        bankJuneCompletion()
+        val vm = viewModel()
+
+        vm.uiState.test {
+            val state = awaitUntil { !it.loading }
+            assertTrue(state.reflectionDue)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `reflection stays quiet with only current-month history`() = runTest {
+        repository.seed(recurringQuest())
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading }
+            vm.onEvent(QuestListEvent.CompleteQuest(QuestId("quest-1")))
+            val state = awaitUntil { it.recurring.firstOrNull()?.completed == true }
+            assertFalse(state.reflectionDue)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `banner drops the moment the month is marked handled — skip and complete alike`() = runTest {
+        repository.seed(recurringQuest())
+        bankJuneCompletion()
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading && it.reflectionDue }
+
+            reflectionStore.markHandled(YearMonth.of(2026, 7))
+
+            awaitUntil { !it.reflectionDue }
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a month handled last month re-arms the banner`() = runTest {
+        repository.seed(recurringQuest())
+        bankJuneCompletion()
+        reflectionStore.seed(YearMonth.of(2026, 6))
+        val vm = viewModel()
+
+        vm.uiState.test {
+            val state = awaitUntil { !it.loading }
+            assertTrue(state.reflectionDue)
             cancelAndIgnoreRemainingEvents()
         }
     }

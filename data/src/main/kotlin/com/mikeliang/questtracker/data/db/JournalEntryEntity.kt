@@ -20,4 +20,6 @@ data class JournalEntryEntity(
     val createdAtEpochMillis: Long,
     val entryDateEpochDay: Long,
     val editedAtEpochMillis: Long?,
+    /** Comma-joined quest ids the entry counted toward; null/empty = free-form. */
+    val linkedQuestIds: String?,
 )

@@ -120,7 +120,26 @@ class MigrationTest {
     }
 
     @Test
-    fun `the full chain 1 to 3 runs cleanly`() {
+    fun `migrating 3 to 4 leaves existing entries free-form`() {
+        helper.createDatabase(3).use { v3 ->
+            v3.execSQL(
+                "INSERT INTO journal_entries (id, text, createdAtEpochMillis, entryDateEpochDay) " +
+                    "VALUES ('e1', 'An old entry', 0, 20000)"
+            )
+        }
+
+        val v4 = helper.runMigrationsAndValidate(4, listOf(MIGRATION_3_4))
+        v4.use { connection ->
+            // Pre-scoping entries stay on the timeline: no invented quest links.
+            connection.prepare("SELECT linkedQuestIds FROM journal_entries WHERE id = 'e1'").use { stmt ->
+                stmt.step()
+                assertEquals(true, stmt.isNull(0))
+            }
+        }
+    }
+
+    @Test
+    fun `the full chain 1 to 4 runs cleanly`() {
         helper.createDatabase(1).use { v1 ->
             v1.execSQL(
                 "INSERT INTO quests (id, title, cadence, questType, attribute, createdAtEpochMillis, status) " +
@@ -132,8 +151,8 @@ class MigrationTest {
             )
         }
 
-        val v3 = helper.runMigrationsAndValidate(3, listOf(MIGRATION_1_2, MIGRATION_2_3))
-        v3.use { connection ->
+        val v4 = helper.runMigrationsAndValidate(4, listOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4))
+        v4.use { connection ->
             connection.prepare(
                 "SELECT journalLinked, (SELECT attribute FROM completions WHERE questId = 'q-daily') " +
                     "FROM quests WHERE id = 'q-daily'"
@@ -141,6 +160,10 @@ class MigrationTest {
                 stmt.step()
                 assertEquals(0L, stmt.getLong(0))
                 assertEquals("Body", stmt.getText(1))
+            }
+            connection.prepare("SELECT COUNT(*) FROM journal_entries").use { stmt ->
+                stmt.step()
+                assertEquals(0L, stmt.getLong(0))
             }
         }
     }

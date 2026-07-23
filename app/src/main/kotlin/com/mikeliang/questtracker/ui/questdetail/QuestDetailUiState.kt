@@ -2,6 +2,8 @@ package com.mikeliang.questtracker.ui.questdetail
 
 import com.mikeliang.questtracker.core.engine.ConsistencyScore
 import com.mikeliang.questtracker.core.engine.QuestEdit
+import com.mikeliang.questtracker.core.model.JournalEntry
+import com.mikeliang.questtracker.core.model.JournalEntryId
 import com.mikeliang.questtracker.core.model.Quest
 import java.time.LocalTime
 
@@ -10,6 +12,8 @@ import java.time.LocalTime
  * the number that can't break), and what the user may do to it. [canDelete] is true
  * only for zero-completion mis-creations; everything with history retires instead.
  * [closed] asks the host to pop back (after retire/delete, or if the quest vanished).
+ * [journalEntries] are the entries that counted toward this quest — they live here
+ * rather than on the main Quest Log timeline, newest first.
  */
 data class QuestDetailUiState(
     val loading: Boolean = false,
@@ -18,6 +22,7 @@ data class QuestDetailUiState(
     val consistency: ConsistencyScore? = null,
     val canDelete: Boolean = false,
     val closed: Boolean = false,
+    val journalEntries: List<JournalEntry> = emptyList(),
 )
 
 sealed interface QuestDetailEvent {
@@ -38,4 +43,10 @@ sealed interface QuestDetailEvent {
     data object Retire : QuestDetailEvent
 
     data object Delete : QuestDetailEvent
+
+    /** Rewrite one of this quest's journal entries. Never touches completions. */
+    data class EditJournalEntry(val id: JournalEntryId, val text: String) : QuestDetailEvent
+
+    /** Remove one of this quest's journal entries. Never touches completions. */
+    data class DeleteJournalEntry(val id: JournalEntryId) : QuestDetailEvent
 }

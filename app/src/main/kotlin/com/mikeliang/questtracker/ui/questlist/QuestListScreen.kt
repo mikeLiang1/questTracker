@@ -1,6 +1,7 @@
 package com.mikeliang.questtracker.ui.questlist
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,8 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -29,16 +30,22 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxState
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -61,10 +68,16 @@ import java.time.Instant
 @Composable
 fun QuestListScreen(
     onOpenQuest: (QuestId) -> Unit = {},
+    onOpenReflection: () -> Unit = {},
     viewModel: QuestListViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    QuestListContent(state = state, onEvent = viewModel::onEvent, onOpenQuest = onOpenQuest)
+    QuestListContent(
+        state = state,
+        onEvent = viewModel::onEvent,
+        onOpenQuest = onOpenQuest,
+        onOpenReflection = onOpenReflection,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +87,7 @@ fun QuestListContent(
     onEvent: (QuestListEvent) -> Unit,
     // Screen-level navigation, not a ViewModel event: opening detail changes no state.
     onOpenQuest: (QuestId) -> Unit = {},
+    onOpenReflection: () -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var showQuickAdd by remember { mutableStateOf(false) }
@@ -100,7 +114,7 @@ fun QuestListContent(
             when {
                 state.loading -> LoadingState()
                 state.isEmpty -> EmptyState()
-                else -> QuestBoard(state, onEvent, onOpenQuest)
+                else -> QuestBoard(state, onEvent, onOpenQuest, onOpenReflection)
             }
         }
     }
@@ -143,6 +157,34 @@ private fun EmptyState() {
 }
 
 /**
+ * The monthly reflection's only trigger — an invitation, not an interruption. Copy
+ * frames it as something owned ("your month"), never as an obligation or a nag.
+ */
+@Composable
+private fun ReflectionBanner(onOpen: () -> Unit) {
+    Card(
+        onClick = onOpen,
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "A month is on the books",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Take 90 seconds to look back at your month and adjust the board.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+/**
  * The calm end-of-day banner. Recurring work is done; deliberately no suggestion to
  * do more. The caller keeps the cleared quests listed beneath it — banked gains stay
  * visible — along with any open side quests (life admin, not part of "done").
@@ -171,6 +213,7 @@ private fun QuestBoard(
     state: QuestListUiState,
     onEvent: (QuestListEvent) -> Unit,
     onOpenQuest: (QuestId) -> Unit,
+    onOpenReflection: () -> Unit = {},
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -179,6 +222,11 @@ private fun QuestBoard(
         ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // Surfaced, never forced: a tap opens the reflection, ignoring it costs
+        // nothing, and completing or skipping it drops the banner until next month.
+        if (state.reflectionDue) {
+            item { ReflectionBanner(onOpen = onOpenReflection) }
+        }
         // The banner celebrates; it never hides what was cleared. Swapping the list
         // out for the banner made clearing the last quest look like it deleted the
         // rest of the board.
@@ -248,37 +296,39 @@ private fun RecurringQuestRow(
     onOpen: () -> Unit = {},
 ) {
     val kind = item.quest.kind as QuestKind.Recurring
-    // Clearing is the everyday action, so it owns the whole card: tap clears, tap
-    // again the same day unclears. Navigation to detail is rare and lives on the
-    // explicit chevron instead.
-    Card(
-        onClick = if (item.completed) onUnclear else onComplete,
+    // Tap opens detail (the convention every list app trains); a horizontal swipe
+    // in either direction clears — or un-clears during the same-day undo window.
+    // The tick stays tappable too, as the visible/accessible fallback.
+    SwipeToClear(
         enabled = !item.completed || item.undoable,
-        modifier = Modifier.fillMaxWidth(),
-        colors = lockAwareCardColors(),
+        onToggle = if (item.completed) onUnclear else onComplete,
     ) {
-        Column(
-            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = item.quest.title,
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        QuestBadge(kind.cadence.name)
-                        QuestBadge(kind.type.name)
-                        QuestBadge(kind.attribute.name)
+        Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.quest.title,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            QuestBadge(kind.cadence.name)
+                            QuestBadge(kind.type.name)
+                            QuestBadge(kind.attribute.name)
+                        }
                     }
+                    CompletionTick(
+                        completed = item.completed,
+                        undoable = item.undoable,
+                        onComplete = onComplete,
+                        onUnclear = onUnclear,
+                    )
                 }
-                CompletionDot(completed = item.completed, undoable = item.undoable)
-                OpenQuestChevron(onOpen)
-            }
-            item.progress?.let { progress ->
-                Spacer(Modifier.height(8.dp))
-                AutoProgressBar(progress, modifier = Modifier.padding(end = 12.dp))
+                item.progress?.let { progress ->
+                    Spacer(Modifier.height(8.dp))
+                    AutoProgressBar(progress)
+                }
             }
         }
     }
@@ -293,68 +343,109 @@ private fun SideQuestRow(
 ) {
     // Visually lighter than recurring rows: a tick and a lifetime credit, never
     // attribute badges — side quests are not growth. Same gesture model as
-    // recurring rows: whole card clears, chevron opens.
-    Card(
-        onClick = if (item.completed) onUnclear else onComplete,
+    // recurring rows: tap opens, swipe clears.
+    SwipeToClear(
         enabled = !item.completed || item.undoable,
-        modifier = Modifier.fillMaxWidth(),
-        colors = lockAwareCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-        ),
+        onToggle = if (item.completed) onUnclear else onComplete,
     ) {
-        Row(
-            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Card(
+            onClick = onOpen,
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            ),
         ) {
-            Text(
-                text = item.quest.title,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.weight(1f),
-            )
-            CompletionDot(completed = item.completed, undoable = item.undoable)
-            OpenQuestChevron(onOpen)
+            Row(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = item.quest.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.weight(1f),
+                )
+                CompletionTick(
+                    completed = item.completed,
+                    undoable = item.undoable,
+                    onComplete = onComplete,
+                    onUnclear = onUnclear,
+                )
+            }
         }
     }
 }
 
 /**
- * Pure status indicator — the card itself is the tap target now. Dims once the
- * gain is banked overnight and the row locks (gains are permanent).
+ * Horizontal swipe in either direction clears a quest — or un-clears it during the
+ * same-day undo window. The row is never actually dismissed: the veto below snaps
+ * it back, and the completion change re-sorts it into its new section — so the
+ * "swipe = done" gesture reads true without ever hiding the banked gain.
  */
 @Composable
-private fun CompletionDot(completed: Boolean, undoable: Boolean = false) {
-    RadioButton(
-        selected = completed,
-        onClick = null,
-        enabled = !completed || undoable,
+private fun SwipeToClear(
+    enabled: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    // The swipe state survives the row moving between board sections (same
+    // LazyColumn key), so read the latest lambda rather than the one captured
+    // when the state was first remembered.
+    val currentOnToggle by rememberUpdatedState(onToggle)
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            if (value != SwipeToDismissBoxValue.Settled) currentOnToggle()
+            false
+        },
     )
+    SwipeToDismissBox(
+        state = state,
+        enableDismissFromStartToEnd = enabled,
+        enableDismissFromEndToStart = enabled,
+        backgroundContent = { SwipeClearBackground(state) },
+    ) {
+        content()
+    }
 }
 
-/** The one part of a row that navigates instead of clearing. */
+/** Calm check reveal behind a swiping row — clearing is a win, never a deletion. */
 @Composable
-private fun OpenQuestChevron(onOpen: () -> Unit) {
-    IconButton(onClick = onOpen) {
+private fun SwipeClearBackground(state: SwipeToDismissBoxState) {
+    val alignment = when (state.dismissDirection) {
+        SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
+        else -> Alignment.CenterEnd
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .clip(CardDefaults.shape)
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .padding(horizontal = 24.dp),
+        contentAlignment = alignment,
+    ) {
         Icon(
-            Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "Open quest",
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            Icons.Filled.Check,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
         )
     }
 }
 
-/**
- * Card colors whose disabled (banked-and-locked) state keeps the enabled container
- * — a locked row is finished, not broken, so only the content dims via the
- * [CompletionDot], never the whole card.
- */
 @Composable
-private fun lockAwareCardColors(
-    containerColor: Color = CardDefaults.cardColors().containerColor,
-) = CardDefaults.cardColors(
-    containerColor = containerColor,
-    disabledContainerColor = containerColor,
-    disabledContentColor = CardDefaults.cardColors().contentColor,
-)
+private fun CompletionTick(
+    completed: Boolean,
+    undoable: Boolean = false,
+    onComplete: () -> Unit,
+    onUnclear: () -> Unit = {},
+) {
+    // RadioButton reads as a calm "done" dot; also the tap fallback for anyone who
+    // doesn't discover the swipe. Tapping again the same day undoes a mis-tap; once
+    // the day rolls over the gain is banked and the tick locks (gains are permanent).
+    val enabled = !completed || undoable
+    val onClick = if (completed) onUnclear else onComplete
+    IconButton(onClick = onClick, enabled = enabled) {
+        RadioButton(selected = completed, onClick = onClick, enabled = enabled)
+    }
+}
 
 @Composable
 private fun QuestBadge(label: String) {
@@ -375,13 +466,10 @@ private fun QuestBadge(label: String) {
 }
 
 @Composable
-private fun AutoProgressBar(
-    progress: QuestListUiState.AutoProgress,
-    modifier: Modifier = Modifier,
-) {
+private fun AutoProgressBar(progress: QuestListUiState.AutoProgress) {
     val format = remember { NumberFormat.getIntegerInstance() }
     val current = progress.current
-    Column(modifier = modifier) {
+    Column {
         LinearProgressIndicator(
             progress = {
                 if (current == null) 0f

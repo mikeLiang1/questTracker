@@ -6,6 +6,7 @@ import com.mikeliang.questtracker.core.Clock
 import com.mikeliang.questtracker.core.engine.QuestEngine
 import com.mikeliang.questtracker.core.model.JournalEntry
 import com.mikeliang.questtracker.core.model.JournalEntryId
+import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.repository.JournalRepository
 import com.mikeliang.questtracker.core.repository.QuestRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -46,6 +47,9 @@ class QuestLogViewModel @Inject constructor(
             QuestLogUiState(
                 days = engine.questLog(quests, completions, entries),
                 today = clock.today(),
+                linkedOptions = engine.journalCandidates(quests, completions).map {
+                    QuestLogUiState.LinkedQuestOption(it.id, it.title)
+                },
                 feedback = pendingFeedback,
             )
         }.stateIn(
@@ -56,28 +60,32 @@ class QuestLogViewModel @Inject constructor(
 
     fun onEvent(event: QuestLogEvent) {
         when (event) {
-            is QuestLogEvent.SaveEntry -> saveEntry(event.text)
+            is QuestLogEvent.SaveEntry -> saveEntry(event.text, event.countToward)
             is QuestLogEvent.EditEntry -> editEntry(event.id, event.text)
             is QuestLogEvent.DeleteEntry -> deleteEntry(event.id)
             QuestLogEvent.FeedbackShown -> feedback.value = null
         }
     }
 
-    private fun saveEntry(text: String) {
+    private fun saveEntry(text: String, countToward: Set<QuestId>?) {
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
         viewModelScope.launch {
+            val quests = questRepository.observeQuests().first()
+            val completions = questRepository.observeCompletions().first()
+            val result = engine.completeFromJournalEntry(quests, completions, countToward)
             journalRepository.upsertEntry(
                 JournalEntry(
                     id = JournalEntryId(UUID.randomUUID().toString()),
                     text = trimmed,
                     createdAt = clock.now(),
                     entryDate = clock.today(),
+                    // Frozen scope: the quests this save actually banked. Scoped
+                    // entries read from their quest's detail screen; an empty set
+                    // (free-form, or nothing left to bank) stays on the timeline.
+                    questIds = result.records.map { it.questId }.toSet(),
                 )
             )
-            val quests = questRepository.observeQuests().first()
-            val completions = questRepository.observeCompletions().first()
-            val result = engine.completeFromJournalEntry(quests, completions)
             result.records.forEach { questRepository.recordCompletion(it) }
             feedback.value = result.feedback
                 ?.let { QuestLogFeedback.QuestCompleted(it) }

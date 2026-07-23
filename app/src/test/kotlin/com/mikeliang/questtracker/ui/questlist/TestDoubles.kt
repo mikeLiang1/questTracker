@@ -8,8 +8,10 @@ import com.mikeliang.questtracker.core.model.CompletionRecord
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.repository.QuestRepository
+import com.mikeliang.questtracker.reflection.ReflectionStateStore
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -63,6 +65,24 @@ class FakeQuestRepository : QuestRepository {
     val storedQuests: List<Quest> get() = quests.value
 
     suspend fun seed(vararg seeded: Quest) = seeded.forEach { upsertQuest(it) }
+}
+
+/** In-memory reflection store; also used by the reflection ViewModel's own tests. */
+class FakeReflectionStateStore : ReflectionStateStore {
+
+    private val handled = MutableStateFlow<YearMonth?>(null)
+
+    override fun lastHandledMonth(): Flow<YearMonth?> = handled.asStateFlow()
+
+    override suspend fun markHandled(month: YearMonth) {
+        handled.value = month
+    }
+
+    val handledMonth: YearMonth? get() = handled.value
+
+    fun seed(month: YearMonth?) {
+        handled.value = month
+    }
 }
 
 /** Health source whose "today" reading the test scripts directly. */

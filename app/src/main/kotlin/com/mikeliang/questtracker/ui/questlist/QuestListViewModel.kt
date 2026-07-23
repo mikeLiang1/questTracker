@@ -10,19 +10,11 @@ import com.mikeliang.questtracker.core.engine.TodayBoard
 import com.mikeliang.questtracker.core.engine.UnclearOutcome
 import com.mikeliang.questtracker.core.health.HealthDataSource
 import com.mikeliang.questtracker.core.health.HealthReading
-import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.core.model.CompletionSource
-import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
-import com.mikeliang.questtracker.core.model.QuestKind
-import com.mikeliang.questtracker.core.model.QuestType
-import com.mikeliang.questtracker.core.model.ReminderSchedule
 import com.mikeliang.questtracker.core.repository.QuestRepository
+import com.mikeliang.questtracker.reflection.ReflectionStateStore
 import dagger.hilt.android.lifecycle.HiltViewModel
-import java.time.DayOfWeek
-import java.time.LocalDateTime
-import java.time.LocalTime
-import java.util.UUID
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -49,9 +41,20 @@ class QuestListViewModel @Inject constructor(
     private val engine: QuestEngine,
     private val healthSource: HealthDataSource,
     private val clock: Clock,
+    reflectionStateStore: ReflectionStateStore,
 ) : ViewModel() {
 
     private val feedback = MutableStateFlow<CompletionFeedback?>(null)
+
+    /**
+     * Whether to surface the monthly-reflection banner. Reactive on both inputs:
+     * completions crossing a month boundary arm it, marking the month handled
+     * (finishing or skipping the flow) drops it immediately.
+     */
+    private val reflectionDue: Flow<Boolean> = combine(
+        repository.observeCompletions(),
+        reflectionStateStore.lastHandledMonth(),
+    ) { completions, lastHandled -> engine.reflectionDue(completions, lastHandled) }
 
     private val board: Flow<TodayBoard> = combine(
         repository.observeQuests(),
@@ -76,7 +79,7 @@ class QuestListViewModel @Inject constructor(
         }
 
     val uiState: StateFlow<QuestListUiState> =
-        combine(boardWithReadings, feedback) { (current, readings), pendingFeedback ->
+        combine(boardWithReadings, feedback, reflectionDue) { (current, readings), pendingFeedback, dueForReflection ->
             QuestListUiState(
                 recurring = current.recurring.map { due ->
                     QuestListUiState.RecurringItem(
@@ -97,6 +100,7 @@ class QuestListViewModel @Inject constructor(
                 },
                 doneForToday = current.doneForToday,
                 feedback = pendingFeedback,
+                reflectionDue = dueForReflection,
             )
         }.stateIn(
             scope = viewModelScope,
@@ -108,69 +112,16 @@ class QuestListViewModel @Inject constructor(
         when (event) {
             is QuestListEvent.CompleteQuest -> completeQuest(event.id)
             is QuestListEvent.UnclearQuest -> unclearQuest(event.id)
-            is QuestListEvent.AddSideQuest -> addSideQuest(event)
-            is QuestListEvent.AddRecurringQuest -> addRecurringQuest(event)
+            is QuestListEvent.AddSideQuest,
+            is QuestListEvent.AddRecurringQuest -> addQuest(event)
             QuestListEvent.FeedbackShown -> feedback.value = null
         }
     }
 
-    private fun addSideQuest(event: QuestListEvent.AddSideQuest) {
-        val title = event.title.trim()
-        if (title.isEmpty()) return
-        viewModelScope.launch {
-            repository.upsertQuest(
-                Quest(
-                    id = newQuestId(),
-                    title = title,
-                    kind = QuestKind.SideQuest,
-                    createdAt = clock.now(),
-                    reminder = event.reminderTime?.let {
-                        ReminderSchedule.OneShot(at = nextOccurrenceOf(it))
-                    },
-                )
-            )
-        }
+    private fun addQuest(event: QuestListEvent) {
+        val quest = questFromQuickAdd(event, clock) ?: return
+        viewModelScope.launch { repository.upsertQuest(quest) }
     }
-
-    private fun addRecurringQuest(event: QuestListEvent.AddRecurringQuest) {
-        val title = event.title.trim()
-        if (title.isEmpty()) return
-        viewModelScope.launch {
-            repository.upsertQuest(
-                Quest(
-                    id = newQuestId(),
-                    title = title,
-                    // Quick-add captures Maintenance quests only; progression targets
-                    // are added from the quest detail screen, not a 5-second sheet.
-                    kind = QuestKind.Recurring(
-                        cadence = event.cadence,
-                        type = QuestType.Maintenance,
-                        attribute = event.attribute,
-                        journalLinked = event.journalLinked,
-                    ),
-                    createdAt = clock.now(),
-                    reminder = event.reminderTime?.let { reminderScheduleFor(event.cadence, it) },
-                )
-            )
-        }
-    }
-
-    /**
-     * Quick-added recurring reminders: dailies nudge every day; weeklies and monthlies
-     * nudge once a week on the day the quest was created — the sheet has no day picker,
-     * and a weekly nudge is the least-surprising default. Editable from the quest's
-     * detail screen.
-     */
-    private fun reminderScheduleFor(cadence: Cadence, time: LocalTime): ReminderSchedule =
-        ReminderSchedule.Recurring(
-            time = time,
-            days = when (cadence) {
-                Cadence.Daily -> DayOfWeek.entries.toSet()
-                Cadence.Weekly, Cadence.Monthly -> setOf(clock.today().dayOfWeek)
-            },
-        )
-
-    private fun newQuestId(): QuestId = QuestId(UUID.randomUUID().toString())
 
     private fun completeQuest(id: QuestId) {
         viewModelScope.launch {
@@ -202,13 +153,4 @@ class QuestListViewModel @Inject constructor(
         }
     }
 
-    /**
-     * A quick-added reminder means "next time it's this o'clock" — today if the time
-     * is still ahead, tomorrow otherwise. Input shaping, not engine logic.
-     */
-    private fun nextOccurrenceOf(time: LocalTime): LocalDateTime {
-        val now = LocalDateTime.ofInstant(clock.now(), clock.zone())
-        val todayAt = now.toLocalDate().atTime(time)
-        return if (todayAt.isAfter(now)) todayAt else todayAt.plusDays(1)
-    }
 }

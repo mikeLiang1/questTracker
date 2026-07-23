@@ -3,6 +3,7 @@ package com.mikeliang.questtracker.ui.questlog
 import com.mikeliang.questtracker.core.engine.CompletionFeedback
 import com.mikeliang.questtracker.core.engine.QuestLogDay
 import com.mikeliang.questtracker.core.model.JournalEntryId
+import com.mikeliang.questtracker.core.model.QuestId
 import java.time.LocalDate
 
 /**
@@ -15,9 +16,22 @@ data class QuestLogUiState(
     val loading: Boolean = false,
     val days: List<QuestLogDay> = emptyList(),
     val today: LocalDate? = null,
+    /**
+     * Journal-linked quests a new entry could complete right now, shown in the write
+     * sheet as pre-selected options. Empty when nothing is linked or everything's
+     * already banked this period — the sheet then shows no quest section at all.
+     */
+    val linkedOptions: List<LinkedQuestOption> = emptyList(),
     /** Transient save feedback; cleared via [QuestLogEvent.FeedbackShown]. */
     val feedback: QuestLogFeedback? = null,
 ) {
+
+    /** A quest the write sheet offers to complete alongside the entry. */
+    data class LinkedQuestOption(
+        val id: QuestId,
+        val title: String,
+    )
+
     val isEmpty: Boolean get() = !loading && days.isEmpty()
 }
 
@@ -44,8 +58,15 @@ sealed interface QuestLogFeedback {
 /** Every user intent the screen can produce. */
 sealed interface QuestLogEvent {
 
-    /** Write a new entry; may auto-complete journal-linked quests. */
-    data class SaveEntry(val text: String) : QuestLogEvent
+    /**
+     * Write a new entry. [countToward] is the quest selection from the write sheet's
+     * options; null means "all linked" (the untouched default). Selection only ever
+     * narrows — it can never complete a quest that isn't journal-linked.
+     */
+    data class SaveEntry(
+        val text: String,
+        val countToward: Set<QuestId>? = null,
+    ) : QuestLogEvent
 
     /** Rewrite an existing entry's text. Never touches completions. */
     data class EditEntry(val id: JournalEntryId, val text: String) : QuestLogEvent

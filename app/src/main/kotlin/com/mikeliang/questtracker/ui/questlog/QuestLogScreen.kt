@@ -99,17 +99,18 @@ fun QuestLogContent(
     if (showWrite) {
         WriteEntrySheet(
             onDismiss = { showWrite = false },
-            onSave = { text ->
+            onSave = { text, countToward ->
                 showWrite = false
-                onEvent(QuestLogEvent.SaveEntry(text))
+                onEvent(QuestLogEvent.SaveEntry(text, countToward))
             },
+            linkedQuests = state.linkedOptions,
         )
     }
 
     editingEntry?.let { entry ->
         WriteEntrySheet(
             onDismiss = { editingEntry = null },
-            onSave = { text ->
+            onSave = { text, _ ->
                 editingEntry = null
                 onEvent(QuestLogEvent.EditEntry(entry.id, text))
             },
