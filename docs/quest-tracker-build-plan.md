@@ -232,6 +232,13 @@ ViewModel unit tests using Turbine covering the event → state transitions.
   now renders above a "Cleared today" section listing the completed recurring quests
   with their ticks filled — banked gains stay visible. Open side quests stay listed
   below as before; they still never block or dilute "done".
+- **"Cleared today" is always its own section, not just under the banner.**
+  (Amended 2026-07-24 — originally the section header only appeared once every
+  recurring quest was done; mid-day, completed quests stayed mixed into the active
+  list.) Ticking a quest now visibly moves it from the active list into "Cleared
+  today" immediately, so the active list only ever shows what's still open. Ordering:
+  active recurring → "Cleared today" → side quests; the done-for-today banner, when
+  earned, sits above it all.
 - **Auto-tracked quests keep the manual tick** alongside live progress, honoring the
   design rule that absent health data never blocks completion.
 

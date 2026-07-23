@@ -176,10 +176,14 @@ class QuestListViewModelTest {
             vm.onEvent(QuestListEvent.CompleteQuest(QuestId("q1")))
             val oneDone = awaitUntil { it.recurring.count { r -> r.completed } == 1 }
             assertFalse(oneDone.doneForToday)
+            // Mid-day the board already splits: cleared quests leave the active list.
+            assertEquals(listOf(QuestId("q2")), oneDone.activeRecurring.map { it.quest.id })
+            assertEquals(listOf(QuestId("q1")), oneDone.clearedRecurring.map { it.quest.id })
 
             vm.onEvent(QuestListEvent.CompleteQuest(QuestId("q2")))
             val done = awaitUntil { it.doneForToday }
             assertTrue(done.recurring.all { it.completed })
+            assertTrue(done.activeRecurring.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
     }

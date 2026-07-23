@@ -181,21 +181,37 @@ private fun QuestBoard(
         // rest of the board.
         if (state.doneForToday) {
             item { DoneForToday() }
-            item {
-                Text(
-                    text = "Cleared today",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(bottom = 4.dp),
-                )
-            }
         }
-        items(state.recurring, key = { it.quest.id.value }) { item ->
+        items(state.activeRecurring, key = { it.quest.id.value }) { item ->
             RecurringQuestRow(
                 item = item,
                 onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) },
                 onOpen = { onOpenQuest(item.quest.id) },
             )
+        }
+
+        // Cleared quests always sit in their own section, mid-day included — ticking
+        // a quest visibly moves it out of the active list instead of leaving it mixed
+        // in, while the banked gain stays on screen.
+        if (state.clearedRecurring.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Cleared today",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(
+                        top = if (state.activeRecurring.isEmpty()) 0.dp else 16.dp,
+                        bottom = 4.dp,
+                    ),
+                )
+            }
+            items(state.clearedRecurring, key = { it.quest.id.value }) { item ->
+                RecurringQuestRow(
+                    item = item,
+                    onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) },
+                    onOpen = { onOpenQuest(item.quest.id) },
+                )
+            }
         }
 
         if (state.sideQuests.isNotEmpty()) {

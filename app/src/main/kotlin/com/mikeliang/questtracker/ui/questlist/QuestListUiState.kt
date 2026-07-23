@@ -43,6 +43,16 @@ data class QuestListUiState(
     )
 
     val isEmpty: Boolean get() = !loading && recurring.isEmpty() && sideQuests.isEmpty()
+
+    /** Recurring quests still open this period — the top of the board. */
+    val activeRecurring: List<RecurringItem> get() = recurring.filter { !it.completed }
+
+    /**
+     * Recurring quests already banked this period. Always rendered as their own
+     * "Cleared today" section, not just under the done-for-today banner — a cleared
+     * quest visibly moves out of the way while its gain stays on screen.
+     */
+    val clearedRecurring: List<RecurringItem> get() = recurring.filter { it.completed }
 }
 
 /** Every user intent the screen can produce. */
