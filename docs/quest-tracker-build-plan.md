@@ -225,9 +225,13 @@ ViewModel unit tests using Turbine covering the event → state transitions.
   time. Weekly/Monthly quest → weekly on the day the quest was created (the sheet has
   no day picker; weekly is the least-surprising nudge for a monthly quest and is
   editable in Phase 3b).
-- **"Done for today" replaces the recurring list only.** Open side quests stay listed
-  below the calm state — they're captured life admin, and hiding them would lose
-  them; they still never block or dilute "done".
+- **"Done for today" sits above the cleared list; it never replaces it.**
+  (Amended 2026-07-23 — originally "replaces the recurring list only", as the Phase 3
+  prompt specified. In use, ticking the last quest made the whole board vanish
+  mid-interaction, which read as clearing one quest deleting the rest.) The banner
+  now renders above a "Cleared today" section listing the completed recurring quests
+  with their ticks filled — banked gains stay visible. Open side quests stay listed
+  below as before; they still never block or dilute "done".
 - **Auto-tracked quests keep the manual tick** alongside live progress, honoring the
   design rule that absent health data never blocks completion.
 

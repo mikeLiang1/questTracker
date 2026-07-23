@@ -135,9 +135,9 @@ private fun EmptyState() {
 }
 
 /**
- * The calm end-of-day state. Recurring work is done; deliberately no suggestion to do
- * more. Open side quests (if any) stay listed below by the caller — they're life
- * admin, not part of "done".
+ * The calm end-of-day banner. Recurring work is done; deliberately no suggestion to
+ * do more. The caller keeps the cleared quests listed beneath it — banked gains stay
+ * visible — along with any open side quests (life admin, not part of "done").
  */
 @Composable
 private fun DoneForToday() {
@@ -170,12 +170,22 @@ private fun QuestBoard(
         ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // The banner celebrates; it never hides what was cleared. Swapping the list
+        // out for the banner made clearing the last quest look like it deleted the
+        // rest of the board.
         if (state.doneForToday) {
             item { DoneForToday() }
-        } else {
-            items(state.recurring, key = { it.quest.id.value }) { item ->
-                RecurringQuestRow(item, onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) })
+            item {
+                Text(
+                    text = "Cleared today",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
             }
+        }
+        items(state.recurring, key = { it.quest.id.value }) { item ->
+            RecurringQuestRow(item, onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) })
         }
 
         if (state.sideQuests.isNotEmpty()) {
