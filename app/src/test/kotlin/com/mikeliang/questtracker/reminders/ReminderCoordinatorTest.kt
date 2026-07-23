@@ -176,6 +176,36 @@ class ReminderCoordinatorTest {
         assertEquals(Instant.parse("2026-07-18T19:00:00Z"), scheduler.scheduled[QuestId("daily-1")])
         assertFalse(repository.recordedCompletions.isEmpty())
     }
+
+    @Test
+    fun `keepInSync reschedules automatically when a reminder is edited`() = runTest {
+        repository.seed(dailyQuest(at = LocalTime.of(19, 0)))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            coordinator().keepInSync()
+        }
+        assertEquals(Instant.parse("2026-07-17T19:00:00Z"), scheduler.scheduled[QuestId("daily-1")])
+
+        // The detail screen's edit path is just an upsert — no reminder plumbing.
+        repository.upsertQuest(dailyQuest(at = LocalTime.of(21, 0)))
+
+        assertEquals(Instant.parse("2026-07-17T21:00:00Z"), scheduler.scheduled[QuestId("daily-1")])
+    }
+
+    @Test
+    fun `keepInSync cancels the alarm of a deleted quest`() = runTest {
+        repository.seed(dailyQuest(at = LocalTime.of(19, 0)))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            coordinator().keepInSync()
+        }
+        assertTrue(QuestId("daily-1") in scheduler.scheduled.keys)
+
+        // A deleted quest vanishes from the list entirely — syncAll never iterates
+        // it, so only the vanished-id diff can cancel its alarm.
+        repository.deleteQuest(QuestId("daily-1"))
+
+        assertNull(scheduler.scheduled[QuestId("daily-1")])
+        assertTrue(QuestId("daily-1") in scheduler.cancelled)
+    }
 }
 
 /** Records the alarms the coordinator sets and drops, standing in for AlarmManager. */

@@ -5,6 +5,7 @@ import com.mikeliang.questtracker.core.completions
 import com.mikeliang.questtracker.core.date
 import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.Cadence
+import com.mikeliang.questtracker.core.model.QuestType
 import com.mikeliang.questtracker.core.progressionQuest
 import com.mikeliang.questtracker.core.recurringQuest
 import com.mikeliang.questtracker.core.sideQuest
@@ -126,5 +127,81 @@ class AttributeAccrualTest {
         assertEquals(0, social.rank)
         assertEquals("Unwritten", social.title)
         assertEquals(5.0, social.pointsToNextRank)
+    }
+
+    @Test
+    fun `editing the attribute leaves banked points on the original attribute`() {
+        val before = recurringQuest(attribute = Attribute.Body)
+        val banked = completions(before, start, start.plusDays(1)) // frozen as Body
+        val after = editQuest(
+            before,
+            QuestEdit.EditRecurring(before.title, Cadence.Daily, Attribute.Mind, null),
+            banked,
+            start.plusDays(2),
+        )
+        val newCredit = completions(after, start.plusDays(2)) // frozen as Mind
+
+        val progress = attributeProgress(listOf(after), banked + newCredit)
+
+        assertEquals(2.0, progress.getValue(Attribute.Body).points)
+        assertEquals(1.0, progress.getValue(Attribute.Mind).points)
+    }
+
+    @Test
+    fun `editing the cadence never re-prices banked completions`() {
+        val before = recurringQuest(cadence = Cadence.Weekly, attribute = Attribute.Mind)
+        val banked = completions(before, date("2026-06-01"), date("2026-06-08")) // frozen at 3.0 each
+        val after = editQuest(
+            before,
+            QuestEdit.EditRecurring(before.title, Cadence.Daily, Attribute.Mind, null),
+            banked,
+            date("2026-06-15"),
+        )
+
+        assertEquals(6.0, attributeProgress(listOf(after), banked).getValue(Attribute.Mind).points)
+    }
+
+    @Test
+    fun `editing the cadence never collapses banked credits`() {
+        val before = recurringQuest(cadence = Cadence.Daily)
+        // Three daily credits inside one calendar week.
+        val banked = completions(before, date("2026-06-01"), date("2026-06-02"), date("2026-06-03"))
+        val after = editQuest(
+            before,
+            QuestEdit.EditRecurring(before.title, Cadence.Weekly, Attribute.Body, null),
+            banked,
+            date("2026-06-15"),
+        )
+
+        val progress = attributeProgress(listOf(after), banked).getValue(Attribute.Body)
+
+        assertEquals(3.0, progress.points)
+        assertEquals(3, progress.completions)
+    }
+
+    @Test
+    fun `records banked before freezing fall back to the quest's current context`() {
+        val quest = recurringQuest(cadence = Cadence.Weekly, attribute = Attribute.Discipline)
+        val unfrozen = completion(quest, start).copy(attribute = null, basePoints = null)
+
+        val progress = attributeProgress(listOf(quest), listOf(unfrozen))
+
+        assertEquals(3.0, progress.getValue(Attribute.Discipline).points)
+    }
+
+    @Test
+    fun `maintenance records stay full base even after a target is added later`() {
+        val before = recurringQuest(type = QuestType.Maintenance)
+        // 20 maintenance credits — no escalation level frozen on them.
+        val banked = completions(before, *(0L..19L).map { start.plusDays(it) }.toTypedArray())
+        val after = editQuest(
+            before,
+            QuestEdit.EditRecurring(before.title, Cadence.Daily, Attribute.Body, null, TargetEdit.Add(8000.0, "steps")),
+            banked,
+            start.plusDays(20),
+        )
+
+        // Never diminished: 20 full points, not 15 + 5 halved.
+        assertEquals(20.0, attributeProgress(listOf(after), banked).getValue(Attribute.Body).points)
     }
 }

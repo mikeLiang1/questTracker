@@ -27,6 +27,9 @@ class RoomQuestRepository(
     override suspend fun upsertQuest(quest: Quest) =
         questDao.upsert(quest.toEntity())
 
+    override suspend fun deleteQuest(id: QuestId) =
+        questDao.delete(id.value)
+
     override suspend fun recordCompletion(record: CompletionRecord) =
         completionDao.insert(record.toEntity())
 

@@ -78,8 +78,19 @@ class ReminderCoordinator @Inject constructor(
         rescheduleOne(questId)
     }
 
+    /**
+     * Ids seen on the previous sync. A quest that has since vanished (hard-deleted
+     * mis-creation, Phase 6b) is no longer iterated by [syncAll], so its alarm must
+     * be cancelled explicitly — otherwise the OS would fire for a quest that no
+     * longer exists, the one nag the no-nag law can't tolerate.
+     */
+    private var lastSyncedIds: Set<QuestId> = emptySet()
+
     private fun syncAll(quests: List<Quest>, completions: List<CompletionRecord>) {
         quests.forEach { quest -> sync(quest, completions) }
+        val currentIds = quests.map { it.id }.toSet()
+        (lastSyncedIds - currentIds).forEach { alarmScheduler.cancel(it) }
+        lastSyncedIds = currentIds
     }
 
     private fun sync(quest: Quest, completions: List<CompletionRecord>) {

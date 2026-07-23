@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [QuestEntity::class, CompletionEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class QuestTrackerDatabase : RoomDatabase() {

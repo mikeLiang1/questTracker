@@ -39,6 +39,10 @@ class FakeQuestRepository : QuestRepository {
         quests.update { list -> list.filterNot { it.id == quest.id } + quest }
     }
 
+    override suspend fun deleteQuest(id: QuestId) {
+        quests.update { list -> list.filterNot { it.id == id } }
+    }
+
     override suspend fun recordCompletion(record: CompletionRecord) {
         completions.update { it + record }
     }

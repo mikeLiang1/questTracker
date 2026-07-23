@@ -131,6 +131,30 @@ class ConsistencyTest {
     }
 
     @Test
+    fun `a cadence change restarts the evaluation window`() {
+        // Daily since January, switched cadence on the 13th — only the 13th–15th are
+        // evaluated; the empty months before the switch are never re-read as misses.
+        val quest = recurringQuest(cadenceChangedOn = date("2026-07-13"))
+        val history = completions(quest, date("2026-07-13"), date("2026-07-15"))
+
+        val score = consistencyScore(quest, history, today, zone)
+
+        assertEquals(ConsistencyScore(3, 2, 1, 1.0), score)
+    }
+
+    @Test
+    fun `a cadence change before creation defers to the creation date`() {
+        val quest = recurringQuest(
+            createdAt = Instant.parse("2026-07-13T09:00:00Z"),
+            cadenceChangedOn = date("2026-07-01"),
+        )
+
+        val score = consistencyScore(quest, emptyList(), today, zone)
+
+        assertEquals(3, score.evaluatedPeriods) // 13th, 14th, 15th — never pre-creation
+    }
+
+    @Test
     fun `quest creation date respects the zone`() {
         // Created 2026-07-12T20:00 in Sydney (+10) = 2026-07-13 local: the 12th is pre-creation.
         val quest = recurringQuest(createdAt = Instant.parse("2026-07-12T20:00:00Z"))

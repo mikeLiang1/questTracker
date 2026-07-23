@@ -20,4 +20,6 @@ data class CompletionEntity(
     val periodStartEpochDay: Long,
     val source: String,
     val escalationLevel: Int?,
+    val attribute: String?,
+    val basePoints: Double?,
 )

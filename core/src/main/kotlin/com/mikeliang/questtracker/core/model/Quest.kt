@@ -2,6 +2,7 @@ package com.mikeliang.questtracker.core.model
 
 import com.mikeliang.questtracker.core.health.HealthMetric
 import java.time.Instant
+import java.time.LocalDate
 
 /** Stable identifier for a quest. */
 @JvmInline
@@ -27,7 +28,9 @@ enum class QuestType { Maintenance, Progression, Outcome }
 
 /**
  * Active quests appear on the board; retired quests move to the "completed chapters"
- * archive. Retiring is the only exit — quests are never deleted or failed.
+ * archive. Retiring is the only exit for a quest with history — quests are never
+ * failed, and deletion exists solely for mis-creations with zero lifetime completions
+ * (nothing banked, so nothing is taken away; see `canDeleteQuest`).
  */
 enum class QuestStatus { Active, Retired }
 
@@ -87,6 +90,10 @@ data class AutoTracking(
 
 /**
  * A quest. Immutable; edits (escalation, retirement, reminder changes) produce copies.
+ *
+ * @property cadenceChangedOn the date of the most recent cadence edit, if any.
+ * Consistency scoring restarts its evaluation window here so a cadence change never
+ * retroactively re-reads old periods under the new clock (no-take-away rule).
  */
 data class Quest(
     val id: QuestId,
@@ -96,6 +103,7 @@ data class Quest(
     val status: QuestStatus = QuestStatus.Active,
     val reminder: ReminderSchedule? = null,
     val autoTracking: AutoTracking? = null,
+    val cadenceChangedOn: LocalDate? = null,
 ) {
     init {
         require(title.isNotBlank()) { "Quest title must not be blank" }

@@ -64,6 +64,10 @@ class QuestEngine(private val clock: Clock) {
                     periodStart = periodStart,
                     source = source,
                     escalationLevel = kind.progression?.escalationLevel,
+                    // Frozen at record time, like periodStart: later edits to the
+                    // quest's attribute or cadence never rewrite banked accrual.
+                    attribute = kind.attribute,
+                    basePoints = AccrualRules.basePoints(kind.cadence),
                 )
             }
 
@@ -84,6 +88,13 @@ class QuestEngine(private val clock: Clock) {
             feedback = buildCompletionFeedback(quest, knownQuests, completions, record),
         )
     }
+
+    /**
+     * Applies a validated [QuestEdit] to [quest] as of today (the clock stamps
+     * [Quest.cadenceChangedOn] on cadence changes). Caller persists the copy.
+     */
+    fun edit(quest: Quest, edit: QuestEdit, completions: List<CompletionRecord>): Quest =
+        editQuest(quest, edit, completions, clock.today())
 
     /** The profile screen's summary as of today. */
     fun profile(quests: List<Quest>, completions: List<CompletionRecord>): ProfileSummary =

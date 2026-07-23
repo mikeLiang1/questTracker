@@ -24,6 +24,13 @@ interface QuestRepository {
     /** Creates or updates a quest (edits, escalation, retirement). */
     suspend fun upsertQuest(quest: Quest)
 
+    /**
+     * Removes a quest outright. Only legal for a mis-creation with zero completions —
+     * the guard is `canDeleteQuest` in :core, which callers must pass first; the
+     * repository is deliberately dumb. Quests with history retire instead.
+     */
+    suspend fun deleteQuest(id: QuestId)
+
     suspend fun recordCompletion(record: CompletionRecord)
 
     suspend fun completionsFor(questId: QuestId): List<CompletionRecord>

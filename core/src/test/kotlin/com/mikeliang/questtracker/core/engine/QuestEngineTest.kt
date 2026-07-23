@@ -178,6 +178,39 @@ class QuestEngineTest {
         assertEquals(3, lifetimeCompletionCount(listOf(daily, side), history))
     }
 
+    @Test
+    fun `completions freeze the quest's attribute and base points at record time`() {
+        val quest = recurringQuest(cadence = Cadence.Weekly, attribute = Attribute.Mind)
+
+        val outcome = completed(engine.complete(quest, listOf(quest), emptyList(), CompletionSource.Manual))
+
+        assertEquals(Attribute.Mind, outcome.record.attribute)
+        assertEquals(3.0, outcome.record.basePoints)
+    }
+
+    @Test
+    fun `side-quest completions freeze nothing - the identity firewall`() {
+        val quest = sideQuest()
+
+        val outcome = completed(engine.complete(quest, listOf(quest), emptyList(), CompletionSource.Manual))
+
+        assertEquals(null, outcome.record.attribute)
+        assertEquals(null, outcome.record.basePoints)
+    }
+
+    @Test
+    fun `edit stamps a cadence change with the clock's today`() {
+        val quest = recurringQuest(cadence = Cadence.Daily)
+
+        val edited = engine.edit(
+            quest,
+            QuestEdit.EditRecurring(quest.title, Cadence.Weekly, Attribute.Body, null),
+            emptyList(),
+        )
+
+        assertEquals(date("2026-07-16"), edited.cadenceChangedOn)
+    }
+
     @ParameterizedTest
     @CsvSource(
         "1, 1st", "2, 2nd", "3, 3rd", "4, 4th",

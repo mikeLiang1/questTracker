@@ -1,5 +1,6 @@
 package com.mikeliang.questtracker.core
 
+import com.mikeliang.questtracker.core.engine.AccrualRules
 import com.mikeliang.questtracker.core.engine.periodStartFor
 import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.AutoTracking
@@ -38,6 +39,7 @@ fun recurringQuest(
     status: QuestStatus = QuestStatus.Active,
     reminder: ReminderSchedule? = null,
     autoTracking: AutoTracking? = null,
+    cadenceChangedOn: LocalDate? = null,
 ): Quest = Quest(
     id = QuestId(id),
     title = title,
@@ -46,6 +48,7 @@ fun recurringQuest(
     status = status,
     reminder = reminder,
     autoTracking = autoTracking,
+    cadenceChangedOn = cadenceChangedOn,
 )
 
 fun progressionQuest(
@@ -88,13 +91,15 @@ fun completion(
     completedAt: Instant = date.atTime(LocalTime.NOON).toInstant(ZoneOffset.UTC),
     escalationLevel: Int? = (quest.kind as? QuestKind.Recurring)?.progression?.escalationLevel,
 ): CompletionRecord {
-    val cadence = (quest.kind as? QuestKind.Recurring)?.cadence
+    val kind = quest.kind as? QuestKind.Recurring
     return CompletionRecord(
         questId = quest.id,
         completedAt = completedAt,
-        periodStart = cadence?.let { periodStartFor(date, it) } ?: date,
+        periodStart = kind?.let { periodStartFor(date, it.cadence) } ?: date,
         source = source,
         escalationLevel = escalationLevel,
+        attribute = kind?.attribute,
+        basePoints = kind?.let { AccrualRules.basePoints(it.cadence) },
     )
 }
 

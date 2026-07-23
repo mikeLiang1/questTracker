@@ -17,4 +17,11 @@ interface QuestDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(quest: QuestEntity)
+
+    /**
+     * Hard delete — only ever reached through :core's `canDeleteQuest` guard
+     * (zero-completion mis-creations). Quests with history retire instead.
+     */
+    @Query("DELETE FROM quests WHERE id = :id")
+    suspend fun delete(id: String)
 }

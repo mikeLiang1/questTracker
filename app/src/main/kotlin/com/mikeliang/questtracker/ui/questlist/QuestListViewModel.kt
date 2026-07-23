@@ -138,7 +138,7 @@ class QuestListViewModel @Inject constructor(
                     id = newQuestId(),
                     title = title,
                     // Quick-add captures Maintenance quests only; progression targets
-                    // need the management flow (later phase), not a 5-second sheet.
+                    // are added from the quest detail screen, not a 5-second sheet.
                     kind = QuestKind.Recurring(
                         cadence = event.cadence,
                         type = QuestType.Maintenance,
@@ -154,7 +154,8 @@ class QuestListViewModel @Inject constructor(
     /**
      * Quick-added recurring reminders: dailies nudge every day; weeklies and monthlies
      * nudge once a week on the day the quest was created — the sheet has no day picker,
-     * and a weekly nudge is the least-surprising default. Editable later (Phase 3b).
+     * and a weekly nudge is the least-surprising default. Editable from the quest's
+     * detail screen.
      */
     private fun reminderScheduleFor(cadence: Cadence, time: LocalTime): ReminderSchedule =
         ReminderSchedule.Recurring(

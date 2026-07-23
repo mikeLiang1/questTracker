@@ -56,9 +56,12 @@ import java.time.Instant
 
 /** Stateful entry point: hooks the ViewModel up to the stateless content. */
 @Composable
-fun QuestListScreen(viewModel: QuestListViewModel = viewModel()) {
+fun QuestListScreen(
+    onOpenQuest: (QuestId) -> Unit = {},
+    viewModel: QuestListViewModel = viewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    QuestListContent(state = state, onEvent = viewModel::onEvent)
+    QuestListContent(state = state, onEvent = viewModel::onEvent, onOpenQuest = onOpenQuest)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,6 +69,8 @@ fun QuestListScreen(viewModel: QuestListViewModel = viewModel()) {
 fun QuestListContent(
     state: QuestListUiState,
     onEvent: (QuestListEvent) -> Unit,
+    // Screen-level navigation, not a ViewModel event: opening detail changes no state.
+    onOpenQuest: (QuestId) -> Unit = {},
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var showQuickAdd by remember { mutableStateOf(false) }
@@ -92,7 +97,7 @@ fun QuestListContent(
             when {
                 state.loading -> LoadingState()
                 state.isEmpty -> EmptyState()
-                else -> QuestBoard(state, onEvent)
+                else -> QuestBoard(state, onEvent, onOpenQuest)
             }
         }
     }
@@ -162,6 +167,7 @@ private fun DoneForToday() {
 private fun QuestBoard(
     state: QuestListUiState,
     onEvent: (QuestListEvent) -> Unit,
+    onOpenQuest: (QuestId) -> Unit,
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -185,7 +191,11 @@ private fun QuestBoard(
             }
         }
         items(state.recurring, key = { it.quest.id.value }) { item ->
-            RecurringQuestRow(item, onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) })
+            RecurringQuestRow(
+                item = item,
+                onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) },
+                onOpen = { onOpenQuest(item.quest.id) },
+            )
         }
 
         if (state.sideQuests.isNotEmpty()) {
@@ -198,7 +208,11 @@ private fun QuestBoard(
                 )
             }
             items(state.sideQuests, key = { it.quest.id.value }) { item ->
-                SideQuestRow(item, onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) })
+                SideQuestRow(
+                    item = item,
+                    onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) },
+                    onOpen = { onOpenQuest(item.quest.id) },
+                )
             }
         }
     }
@@ -208,9 +222,10 @@ private fun QuestBoard(
 private fun RecurringQuestRow(
     item: QuestListUiState.RecurringItem,
     onComplete: () -> Unit,
+    onOpen: () -> Unit = {},
 ) {
     val kind = item.quest.kind as QuestKind.Recurring
-    Card(modifier = Modifier.fillMaxWidth()) {
+    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -239,10 +254,12 @@ private fun RecurringQuestRow(
 private fun SideQuestRow(
     item: QuestListUiState.SideQuestItem,
     onComplete: () -> Unit,
+    onOpen: () -> Unit = {},
 ) {
     // Visually lighter than recurring rows: a tick and a lifetime credit, never
     // attribute badges — side quests are not growth.
     Card(
+        onClick = onOpen,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,

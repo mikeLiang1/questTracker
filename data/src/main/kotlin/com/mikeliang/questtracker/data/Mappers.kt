@@ -42,6 +42,7 @@ fun Quest.toEntity(): QuestEntity {
         reminderOneShotAt = oneShotReminder?.at?.toString(),
         autoTrackingMetric = autoTracking?.metric?.name,
         autoTrackingDailyTarget = autoTracking?.dailyTarget,
+        cadenceChangedOnEpochDay = cadenceChangedOn?.toEpochDay(),
     )
 }
 
@@ -91,6 +92,7 @@ fun QuestEntity.toDomain(): Quest {
         status = QuestStatus.valueOf(status),
         reminder = reminder,
         autoTracking = autoTracking,
+        cadenceChangedOn = cadenceChangedOnEpochDay?.let { LocalDate.ofEpochDay(it) },
     )
 }
 
@@ -100,6 +102,8 @@ fun CompletionRecord.toEntity(): CompletionEntity = CompletionEntity(
     periodStartEpochDay = periodStart.toEpochDay(),
     source = source.name,
     escalationLevel = escalationLevel,
+    attribute = attribute?.name,
+    basePoints = basePoints,
 )
 
 fun CompletionEntity.toDomain(): CompletionRecord = CompletionRecord(
@@ -108,4 +112,6 @@ fun CompletionEntity.toDomain(): CompletionRecord = CompletionRecord(
     periodStart = LocalDate.ofEpochDay(periodStartEpochDay),
     source = CompletionSource.valueOf(source),
     escalationLevel = escalationLevel,
+    attribute = attribute?.let { Attribute.valueOf(it) },
+    basePoints = basePoints,
 )

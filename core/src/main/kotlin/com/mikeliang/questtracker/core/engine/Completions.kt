@@ -22,8 +22,10 @@ fun lifetimeCompletionCount(quests: List<Quest>, completions: List<CompletionRec
     val byQuest = completions.groupBy { it.questId }
     return quests.sumOf { quest ->
         val records = byQuest[quest.id].orEmpty()
-        when (val kind = quest.kind) {
-            is QuestKind.Recurring -> records.dedupedByPeriod(kind.cadence).size
+        when (quest.kind) {
+            // periodStart is frozen at record time, so deduping on it directly is
+            // cadence-independent — a cadence edit never shrinks the headline number.
+            is QuestKind.Recurring -> records.distinctBy { it.periodStart }.size
             QuestKind.SideQuest -> if (records.isEmpty()) 0 else 1
         }
     }

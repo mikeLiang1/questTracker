@@ -1,0 +1,186 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "b5b4ee5d515d689cf07caefe7afbda8f",
+    "entities": [
+      {
+        "tableName": "quests",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `cadence` TEXT, `questType` TEXT, `attribute` TEXT, `progressionAmount` REAL, `progressionUnit` TEXT, `progressionEscalationLevel` INTEGER, `createdAtEpochMillis` INTEGER NOT NULL, `status` TEXT NOT NULL, `reminderTime` TEXT, `reminderDays` TEXT, `reminderOneShotAt` TEXT, `autoTrackingMetric` TEXT, `autoTrackingDailyTarget` REAL, `cadenceChangedOnEpochDay` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cadence",
+            "columnName": "cadence",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "questType",
+            "columnName": "questType",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attribute",
+            "columnName": "attribute",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "progressionAmount",
+            "columnName": "progressionAmount",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "progressionUnit",
+            "columnName": "progressionUnit",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "progressionEscalationLevel",
+            "columnName": "progressionEscalationLevel",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "createdAtEpochMillis",
+            "columnName": "createdAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reminderTime",
+            "columnName": "reminderTime",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reminderDays",
+            "columnName": "reminderDays",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reminderOneShotAt",
+            "columnName": "reminderOneShotAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "autoTrackingMetric",
+            "columnName": "autoTrackingMetric",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "autoTrackingDailyTarget",
+            "columnName": "autoTrackingDailyTarget",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "cadenceChangedOnEpochDay",
+            "columnName": "cadenceChangedOnEpochDay",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "completions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `questId` TEXT NOT NULL, `completedAtEpochMillis` INTEGER NOT NULL, `periodStartEpochDay` INTEGER NOT NULL, `source` TEXT NOT NULL, `escalationLevel` INTEGER, `attribute` TEXT, `basePoints` REAL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "questId",
+            "columnName": "questId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "completedAtEpochMillis",
+            "columnName": "completedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "periodStartEpochDay",
+            "columnName": "periodStartEpochDay",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "escalationLevel",
+            "columnName": "escalationLevel",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "attribute",
+            "columnName": "attribute",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "basePoints",
+            "columnName": "basePoints",
+            "affinity": "REAL"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_completions_questId",
+            "unique": false,
+            "columnNames": [
+              "questId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_completions_questId` ON `${TABLE_NAME}` (`questId`)"
+          },
+          {
+            "name": "index_completions_periodStartEpochDay",
+            "unique": false,
+            "columnNames": [
+              "periodStartEpochDay"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_completions_periodStartEpochDay` ON `${TABLE_NAME}` (`periodStartEpochDay`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b5b4ee5d515d689cf07caefe7afbda8f')"
+    ]
+  }
+}

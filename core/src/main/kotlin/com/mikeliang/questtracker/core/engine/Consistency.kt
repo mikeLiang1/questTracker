@@ -48,7 +48,9 @@ data class ConsistencyScore(
  * Scores [quest] (must be recurring) over its rolling window as of [today]. The
  * current in-progress period is excluded — today is never a miss before it ends —
  * and so are periods before the quest existed ([zone] localizes its creation
- * instant). Zero evaluated periods score a neutral 1.0.
+ * instant) or before its most recent cadence change ([Quest.cadenceChangedOn]
+ * restarts the window, so old periods are never re-read under the new clock).
+ * Zero evaluated periods score a neutral 1.0.
  */
 fun consistencyScore(
     quest: Quest,
@@ -61,6 +63,9 @@ fun consistencyScore(
     val cadence = kind.cadence
 
     val creationStart = periodStartFor(quest.createdAt.atZone(zone).toLocalDate(), cadence)
+    val windowFloor = quest.cadenceChangedOn
+        ?.let { maxOf(creationStart, periodStartFor(it, cadence)) }
+        ?: creationStart
     val completedStarts = completions
         .filter { it.questId == quest.id }
         .map { periodStartFor(it.periodStart, cadence) }
@@ -69,7 +74,7 @@ fun consistencyScore(
     var period = periodContaining(today, cadence).previous()
     var evaluated = 0
     var completed = 0
-    while (evaluated < ConsistencyRules.windowPeriods(cadence) && period.start >= creationStart) {
+    while (evaluated < ConsistencyRules.windowPeriods(cadence) && period.start >= windowFloor) {
         evaluated++
         if (period.start in completedStarts) completed++
         period = period.previous()

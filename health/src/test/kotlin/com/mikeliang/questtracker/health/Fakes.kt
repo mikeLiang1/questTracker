@@ -99,6 +99,10 @@ class FakeQuestRepository : com.mikeliang.questtracker.core.repository.QuestRepo
         quests.value = quests.value.filterNot { it.id == quest.id } + quest
     }
 
+    override suspend fun deleteQuest(id: QuestId) {
+        quests.value = quests.value.filterNot { it.id == id }
+    }
+
     override suspend fun recordCompletion(record: CompletionRecord) {
         completions.value = completions.value + record
     }

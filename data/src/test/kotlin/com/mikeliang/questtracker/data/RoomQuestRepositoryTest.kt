@@ -3,6 +3,7 @@ package com.mikeliang.questtracker.data
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.model.QuestStatus
 import com.mikeliang.questtracker.core.repository.QuestRepository
@@ -76,6 +77,35 @@ class RoomQuestRepositoryTest {
         val ids = repository.observeQuests().first().map { it.id }.toSet()
 
         assertEquals(setOf(QuestId("quest-1"), QuestId("side-1")), ids)
+    }
+
+    @Test
+    fun `deleteQuest removes the quest`() = runTest {
+        repository.upsertQuest(sideQuest(id = "side-1"))
+
+        repository.deleteQuest(QuestId("side-1"))
+
+        assertNull(repository.getQuest(QuestId("side-1")))
+        assertEquals(0, repository.observeQuests().first().size)
+    }
+
+    @Test
+    fun `cadenceChangedOn round-trips`() = runTest {
+        val quest = recurringQuest(id = "quest-1", cadenceChangedOn = LocalDate.parse("2026-07-01"))
+
+        repository.upsertQuest(quest)
+
+        assertEquals(quest, repository.getQuest(QuestId("quest-1")))
+    }
+
+    @Test
+    fun `frozen accrual context round-trips on completions`() = runTest {
+        val quest = recurringQuest(id = "quest-1", cadence = Cadence.Weekly)
+        val record = completion(quest, LocalDate.parse("2026-01-05"))
+
+        repository.recordCompletion(record)
+
+        assertEquals(listOf(record), repository.completionsFor(QuestId("quest-1")))
     }
 
     @Test

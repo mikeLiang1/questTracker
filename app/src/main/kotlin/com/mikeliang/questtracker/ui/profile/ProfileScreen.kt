@@ -43,14 +43,21 @@ import java.time.Instant
 
 /** Stateful entry point: hooks the ViewModel up to the stateless content. */
 @Composable
-fun ProfileScreen(viewModel: ProfileViewModel = viewModel()) {
+fun ProfileScreen(
+    onOpenChapter: (QuestId) -> Unit = {},
+    viewModel: ProfileViewModel = viewModel(),
+) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    ProfileContent(state = state)
+    ProfileContent(state = state, onOpenChapter = onOpenChapter)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileContent(state: ProfileUiState) {
+fun ProfileContent(
+    state: ProfileUiState,
+    // Screen-level navigation, not a ViewModel event: opening detail changes no state.
+    onOpenChapter: (QuestId) -> Unit = {},
+) {
     Scaffold(
         topBar = { TopAppBar(title = { Text("Profile") }) },
     ) { innerPadding ->
@@ -60,14 +67,14 @@ fun ProfileContent(state: ProfileUiState) {
                     CircularProgressIndicator()
                 }
             } else {
-                ProfileList(state)
+                ProfileList(state, onOpenChapter)
             }
         }
     }
 }
 
 @Composable
-private fun ProfileList(state: ProfileUiState) {
+private fun ProfileList(state: ProfileUiState, onOpenChapter: (QuestId) -> Unit) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
@@ -83,7 +90,7 @@ private fun ProfileList(state: ProfileUiState) {
         if (state.chapters.isNotEmpty()) {
             item { SectionHeader("Completed chapters") }
             items(state.chapters, key = { it.quest.id.value }) { chapter ->
-                ChapterRow(chapter)
+                ChapterRow(chapter, onOpen = { onOpenChapter(chapter.quest.id) })
             }
         }
     }
@@ -171,8 +178,9 @@ private fun LifetimeRow(lifetimeCompletions: Int) {
 
 /** A retired quest: a finished chapter, framed as an achievement, never a loss. */
 @Composable
-private fun ChapterRow(chapter: CompletedChapter) {
+private fun ChapterRow(chapter: CompletedChapter, onOpen: () -> Unit = {}) {
     Card(
+        onClick = onOpen,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,

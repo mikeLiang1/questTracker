@@ -28,4 +28,5 @@ data class QuestEntity(
     val reminderOneShotAt: String?,
     val autoTrackingMetric: String?,
     val autoTrackingDailyTarget: Double?,
+    val cadenceChangedOnEpochDay: Long?,
 )

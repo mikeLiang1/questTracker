@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,10 +29,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.health.HealthSyncScheduler
 import com.mikeliang.questtracker.onboarding.OnboardingStateStore
 import com.mikeliang.questtracker.ui.onboarding.OnboardingScreen
 import com.mikeliang.questtracker.ui.profile.ProfileScreen
+import com.mikeliang.questtracker.ui.questdetail.QuestDetailScreen
 import com.mikeliang.questtracker.ui.questlist.QuestListScreen
 import com.mikeliang.questtracker.ui.theme.QuestTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -89,24 +92,35 @@ class MainActivity : ComponentActivity() {
         healthSyncScheduler.reconcileNow()
     }
 
-    /** The app's two destinations. Plain state, no nav library — two tabs don't need one. */
+    /**
+     * The app's destinations. Plain state, no nav library — two tabs and one detail
+     * layer don't need one. A non-null [openQuestId] shows the quest detail over the
+     * current tab; back (or a tab tap) clears it.
+     */
     private enum class HomeTab { Today, Profile }
 
     @Composable
     private fun HomeScaffold() {
         var tab by rememberSaveable { mutableStateOf(HomeTab.Today) }
+        var openQuestId by rememberSaveable { mutableStateOf<String?>(null) }
         Scaffold(
             bottomBar = {
                 NavigationBar {
                     NavigationBarItem(
                         selected = tab == HomeTab.Today,
-                        onClick = { tab = HomeTab.Today },
+                        onClick = {
+                            tab = HomeTab.Today
+                            openQuestId = null
+                        },
                         icon = { Icon(Icons.Filled.Home, contentDescription = null) },
                         label = { Text("Today") },
                     )
                     NavigationBarItem(
                         selected = tab == HomeTab.Profile,
-                        onClick = { tab = HomeTab.Profile },
+                        onClick = {
+                            tab = HomeTab.Profile
+                            openQuestId = null
+                        },
                         icon = { Icon(Icons.Filled.Person, contentDescription = null) },
                         label = { Text("Profile") },
                     )
@@ -114,9 +128,18 @@ class MainActivity : ComponentActivity() {
             },
         ) { innerPadding ->
             Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
-                when (tab) {
-                    HomeTab.Today -> QuestListScreen()
-                    HomeTab.Profile -> ProfileScreen()
+                val questId = openQuestId
+                if (questId != null) {
+                    BackHandler { openQuestId = null }
+                    QuestDetailScreen(
+                        questId = QuestId(questId),
+                        onClose = { openQuestId = null },
+                    )
+                } else {
+                    when (tab) {
+                        HomeTab.Today -> QuestListScreen(onOpenQuest = { openQuestId = it.value })
+                        HomeTab.Profile -> ProfileScreen(onOpenChapter = { openQuestId = it.value })
+                    }
                 }
             }
         }

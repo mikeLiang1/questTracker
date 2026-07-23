@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -15,9 +14,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TimePicker
-import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,8 +24,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.Cadence
+import com.mikeliang.questtracker.ui.common.AttributePicker
+import com.mikeliang.questtracker.ui.common.CadencePicker
+import com.mikeliang.questtracker.ui.common.ReminderTimeChip
+import com.mikeliang.questtracker.ui.common.ReminderTimePickerDialog
 import java.time.LocalTime
-import java.time.format.DateTimeFormatter
 
 /**
  * The 5-second capture sheet: title → optional reminder → save as side quest.
@@ -76,16 +75,10 @@ fun QuickAddSheet(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                FilterChip(
-                    selected = reminderTime != null,
+                ReminderTimeChip(
+                    time = reminderTime,
                     onClick = {
                         if (reminderTime == null) showTimePicker = true else reminderTime = null
-                    },
-                    label = {
-                        Text(
-                            reminderTime?.format(DateTimeFormatter.ofPattern("h:mm a"))
-                                ?: "Remind me"
-                        )
                     },
                 )
                 FilterChip(
@@ -99,27 +92,11 @@ fun QuickAddSheet(
                 Spacer(Modifier.height(16.dp))
                 Text("How often?", style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Cadence.entries.forEach { option ->
-                        FilterChip(
-                            selected = cadence == option,
-                            onClick = { cadence = option },
-                            label = { Text(option.name) },
-                        )
-                    }
-                }
+                CadencePicker(selected = cadence, onSelect = { cadence = it })
                 Spacer(Modifier.height(12.dp))
                 Text("Which attribute does it build?", style = MaterialTheme.typography.labelLarge)
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Attribute.entries.forEach { option ->
-                        FilterChip(
-                            selected = attribute == option,
-                            onClick = { attribute = option },
-                            label = { Text(option.name) },
-                        )
-                    }
-                }
+                AttributePicker(selected = attribute, onSelect = { attribute = it })
             }
 
             Spacer(Modifier.height(20.dp))
@@ -135,19 +112,13 @@ fun QuickAddSheet(
     }
 
     if (showTimePicker) {
-        val pickerState = rememberTimePickerState()
-        AlertDialog(
-            onDismissRequest = { showTimePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    reminderTime = LocalTime.of(pickerState.hour, pickerState.minute)
-                    showTimePicker = false
-                }) { Text("Set") }
+        ReminderTimePickerDialog(
+            initial = reminderTime,
+            onConfirm = {
+                reminderTime = it
+                showTimePicker = false
             },
-            dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("Cancel") }
-            },
-            text = { TimePicker(state = pickerState) },
+            onDismiss = { showTimePicker = false },
         )
     }
 }

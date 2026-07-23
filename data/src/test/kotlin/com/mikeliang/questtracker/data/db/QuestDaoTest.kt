@@ -105,6 +105,24 @@ class QuestDaoTest {
     }
 
     @Test
+    fun `delete removes the row`() = runTest {
+        dao.upsert(sideQuest(id = "side-1").toEntity())
+
+        dao.delete("side-1")
+
+        assertNull(dao.getQuest("side-1"))
+    }
+
+    @Test
+    fun `delete of an unknown id is a no-op`() = runTest {
+        dao.upsert(sideQuest(id = "side-1").toEntity())
+
+        dao.delete("does-not-exist")
+
+        assertEquals(1, dao.observeQuests().first().size)
+    }
+
+    @Test
     fun `observeQuests emits every upserted quest`() = runTest {
         dao.upsert(sideQuest(id = "side-1").toEntity())
         dao.upsert(recurringQuest(id = "quest-1").toEntity())

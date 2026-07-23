@@ -219,7 +219,7 @@ ViewModel unit tests using Turbine covering the event → state transitions.
 
 - **Quick-add recurring quests are always Maintenance.** Progression targets and
   Outcome measures need more thought than a 5-second sheet allows; they belong to the
-  quest-management flow (later phase). The sheet captures cadence + attribute only.
+  quest-management flow (Phase 6b). The sheet captures cadence + attribute only.
 - **Quick-add reminder mapping.** Side quest → one-shot at the next occurrence of the
   chosen time (today if still ahead, else tomorrow). Daily quest → every day at that
   time. Weekly/Monthly quest → weekly on the day the quest was created (the sheet has
@@ -282,8 +282,8 @@ Task: Implement quest reminders in :app.
   `setAndAllowWhileIdle` (a late nudge still lands in the same period). `POST_NOTIFICATIONS`
   is asked once at launch and never gates anything; a denial just means silent reminders.
   No permission is ever forced.
-- **Reminder *editing* UI is deferred to the quest-management/detail flow (a later
-  phase).** Quick-add already captures reminders (Phase 3), and there is no quest-detail
+- **Reminder *editing* UI is deferred to the quest-management/detail flow (Phase
+  6b).** Quick-add already captures reminders (Phase 3), and there is no quest-detail
   screen yet. This phase delivers the full delivery pipeline — schedule, fire, complete
   from the shade, reschedule on boot/time-change — which is its stated core and its test
   surface. A notification carries its quest id for a future detail deep link; today tapping
@@ -391,7 +391,7 @@ Task: Implement the profile/progression screen in :app.
   weeks/days/months" (span from first credited period to today, rounded up).
 - **Consistency is deliberately absent from the profile.** It is quest-scoped, and
   the profile shows accumulated evidence (which only grows); per-quest consistency
-  rates belong to the quest-detail flow (later phase). This trivially satisfies the
+  rates belong to the quest-detail flow (Phase 6b). This trivially satisfies the
   no-loss-display rule.
 - **Retired side quests are archived too.** The completed-chapters list is simply
   every `Retired` quest (newest first) with its banked completion count; gains stay
@@ -460,6 +460,105 @@ auto-tracked steps quest so auto-tracking is on by default:
   onboarding's first composition to the hand-off to the quest list.
 - **Tap budget:** choose class (1) + connect-or-skip health (1) ≤ 4; the skip path is
   a single tap.
+
+---
+
+## Phase 6b — Quest detail & management [DELEGATE]
+
+The "quest-management/detail flow" deferred from Phases 3, 3b, and 5. Pays those IOUs
+in one place, and builds the :core retire/escalate use-cases Phase 7's reflection will
+reuse (reflection edits the system through the same functions — one tested path).
+
+**Prompt:**
+```
+[PREAMBLE]
+
+Task: Implement the quest detail screen and quest editing in :app, with the edit/
+retire/escalate use-cases in :core.
+
+Tapping a quest (today list or archive) opens its detail screen:
+
+- Shows: name, kind, cadence, attribute, reminder schedule, lifetime completions,
+  per-quest consistency rate (computed by :core with rest-day absorption already
+  applied [PASTE signature]), and current progression target where applicable.
+- Edit: name, attribute, cadence, reminder schedule (the editing UI deferred from
+  Phase 3b), and progression target / outcome measure config (deferred from
+  Phase 3's quick-add).
+- Retire: moves the quest to the completed-chapters archive. Banked completions
+  and attribute gains are untouched.
+- Escalate (Progression quests only): calls :core's escalation function. Offered
+  as an option the user picks — never suggested, prompted, or defaulted.
+- Delete exists ONLY for quests with zero lifetime completions (mis-creations).
+  Anything with history retires instead — the affordance simply isn't shown.
+- All edits go through :core use-cases [PASTE signatures]; the UI never mutates
+  state directly (same contract Phase 7 will rely on).
+- Tests: editing cadence/attribute leaves previously credited periods and banked
+  gains byte-identical; retire preserves completions and gains; delete is refused
+  by :core for any quest with completions; reminder edits reschedule via
+  ReminderCoordinator; kind is not editable.
+```
+
+### Phase 6b decisions (locked when the phase was added)
+
+- **Retire is the removal path; delete is an exception, not a feature.** The no-
+  take-away rule (design doc §4.3) protects *accumulated history the user owns*
+  (§6, endowment effect). A quest with zero completions has no history, so deleting
+  a mis-creation takes nothing away — every other quest retires to the archive.
+- **`QuestKind` is immutable.** Editing SideQuest → Recurring (or back) would breach
+  the identity firewall (§4.5): completions banked under one regime would be
+  re-interpreted under the other. Mis-kinded quest with no history → delete and
+  recreate; with history → retire and recreate.
+- **Edits are forward-looking only.** `periodStart` is frozen at record time
+  (Phase 1), so cadence/attribute changes never recompute past credit — enforced in
+  :core, asserted in tests, not left to UI discipline.
+- **Escalation from detail is user-initiated only** (autonomy rule, §4.2: "the user
+  picks; the app never forces escalation"). Phase 7's reflection *surfaces* the
+  option with trajectory context; the detail screen merely *has* it.
+- **Consistency display follows the no-loss rules:** rest-day absorption applied in
+  :core before display, no red/broken framing, lifetime completions shown alongside
+  so the can't-break number is always present (§5).
+
+### Phase 6b decisions (locked during implementation)
+
+- **Accrual context is frozen on the record, like `periodStart`.** `attributeProgress`
+  used to price every banked completion from the quest's *current* attribute/cadence,
+  so an edit would have silently moved or re-priced banked points (and cadence-keyed
+  dedupe could shrink the lifetime count) — a direct no-take-away violation.
+  `CompletionRecord` now carries `attribute` + `basePoints` frozen at record time;
+  accrual and lifetime counting read the record, falling back to the quest's current
+  values only for pre-v2 records. The v1→v2 migration backfills both from each
+  record's quest — exact, because no edit ever happened before v2.
+- **Diminishing returns key off the record's frozen `escalationLevel` alone.** A
+  record banked without one (maintenance) always earns full base, even if the quest
+  later gains a target — 20 banked maintenance completions never retroactively
+  diminish.
+- **`cadenceChangedOn` restarts the consistency window.** A new nullable field on
+  `Quest` (persisted, v2): `consistencyScore` floors its evaluation at the later of
+  creation and the last cadence change, so Weekly→Daily never re-reads months of old
+  periods as misses.
+- **Target *amounts* change only via `escalate()`.** The edit surface (`QuestEdit` /
+  `TargetEdit` in :core) can add a target (Maintenance→Progression, starting above
+  the highest level ever recorded so a re-added target never resumes a farmed one)
+  or remove one (Progression→Maintenance, gains stay) — but cannot express an amount
+  change. One path bumps the level, and the reflection flow will share it.
+- **Outcome-type config is out of scope.** The model has no outcome-measure storage
+  and no flow can create an Outcome quest today; the edit sheet simply shows nothing
+  for it.
+- **Navigation stays plain hoisted state.** `HomeScaffold` holds `openQuestId`
+  (`rememberSaveable`) + `BackHandler`; the detail ViewModel is Hilt
+  assisted-injected (`withCreationCallback`, keyed per quest id) — no navigation
+  artifact added. The assisted id is a raw `String`: `@JvmInline` `QuestId` mangles
+  the factory method name, which Dagger cannot process.
+- **Retired-quest detail is read-only** — no edit pencil, no actions; a finished
+  chapter is evidence, not a draft.
+- **Delete re-checks at commit time.** The button renders only for zero-completion
+  quests, and the ViewModel re-fetches completions before deleting so a completion
+  racing in (notification action) makes delete a silent no-op — history always wins.
+- **`ReminderCoordinator` diffs vanished ids.** `syncAll` only iterates existing
+  quests, so a deleted quest's alarm would have lingered; the coordinator now
+  cancels ids present in the previous sync but missing from the current one.
+- **Side-quest reminder edits reuse quick-add's next-occurrence rule**, and saving
+  an unchanged time keeps the existing one-shot rather than resetting it.
 
 ---
 
