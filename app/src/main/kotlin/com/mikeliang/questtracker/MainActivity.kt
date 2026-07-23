@@ -20,13 +20,17 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.mikeliang.questtracker.health.HealthSyncScheduler
+import com.mikeliang.questtracker.onboarding.OnboardingStateStore
+import com.mikeliang.questtracker.ui.onboarding.OnboardingScreen
 import com.mikeliang.questtracker.ui.profile.ProfileScreen
 import com.mikeliang.questtracker.ui.questlist.QuestListScreen
 import com.mikeliang.questtracker.ui.theme.QuestTrackerTheme
@@ -37,20 +41,45 @@ import javax.inject.Inject
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var healthSyncScheduler: HealthSyncScheduler
+    @Inject lateinit var onboardingStateStore: OnboardingStateStore
 
     // Notifications are optional: a denial just means reminders stay silent. We ask once
-    // and never re-prompt or gate anything on the answer.
+    // and never re-prompt or gate anything on the answer. Fresh installs are asked only
+    // after onboarding completes — no system dialog over the onboarding flow.
     private val requestNotificationPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* optional */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        maybeRequestNotificationPermission()
         setContent {
             QuestTrackerTheme {
-                HomeScaffold()
+                Root()
             }
+        }
+    }
+
+    /**
+     * First-run gate: onboarding until its flag is set, then the two-tab home. Plain
+     * Compose state — `onFinished` flips it directly, so there is no race against the
+     * DataStore write. On recreation the flag is simply re-read.
+     */
+    @Composable
+    private fun Root() {
+        var needsOnboarding by remember { mutableStateOf<Boolean?>(null) }
+        LaunchedEffect(Unit) {
+            val complete = onboardingStateStore.isOnboardingComplete()
+            needsOnboarding = !complete
+            // Returning users keep the launch-time ask.
+            if (complete) maybeRequestNotificationPermission()
+        }
+        when (needsOnboarding) {
+            null -> Unit // one blank frame while DataStore resolves
+            true -> OnboardingScreen(onFinished = {
+                needsOnboarding = false
+                maybeRequestNotificationPermission()
+            })
+            false -> HomeScaffold()
         }
     }
 

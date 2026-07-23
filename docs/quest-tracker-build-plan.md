@@ -422,6 +422,45 @@ manual mode as the fallback framing, (3) land on the quest list, pre-populated.
   quest-list so the <60s claim is testable.
 ```
 
+### Phase 6 decisions (locked during implementation)
+
+**The three starting classes (resolves open decision #2).** All quests are
+`Recurring` + `Maintenance` (same rationale as quick-add: progression targets need
+more thought than onboarding allows), **no reminders** (reminder times are always
+user-chosen — presets never invent notification times, which also resolves the design
+doc's open question about suggested reminder times), and each class includes one
+auto-tracked steps quest so auto-tracking is on by default:
+
+| Class | Loadout |
+|---|---|
+| **Warrior** (Body focus) | Walk 8,000 steps (Daily/Body, auto Steps 8000) · Train or stretch (Daily/Body) · Sleep 7+ hours (Daily/Body, auto SleepMinutes 420) · Plan tomorrow (Daily/Discipline) |
+| **Sage** (Mind focus) | Read 20 minutes (Daily/Mind) · One line of journal (Daily/Mind) · Walk 6,000 steps (Daily/Body, auto Steps 6000) · One deep-work block (Weekly/Discipline) |
+| **Adventurer** (Balanced) | Walk 7,000 steps (Daily/Body, auto Steps 7000) · Read 15 minutes (Daily/Mind) · Reach out to someone (Weekly/Social) · Plan tomorrow (Daily/Discipline) |
+
+- **Presets are pure :core data** (`StartingClass` + `questLoadout()` in
+  `core/.../core/onboarding/StartingClasses.kt`) — this is the ":core use-case" the
+  prompt asks for. The no-reminder / Maintenance-only / one-steps-quest rules are
+  tested in :core, not enforced by UI discipline. :app applies a loadout via
+  `QuestRepository.upsertQuest` per quest.
+- **The Health Connect step shows only when status == Denied** (installed but not yet
+  granted). `Granted` and `Unavailable` both skip straight to the quest list — never
+  ask for what we already have or cannot use. Grant, deny, and skip all proceed; the
+  flow never blocks on the answer.
+- **POST_NOTIFICATIONS moves after onboarding** for fresh installs so no system dialog
+  pops over the onboarding flow; returning users keep the launch-time ask.
+- **First-run flag in Preferences DataStore** (:app — app-shell state, not domain).
+  The flag is persisted *before* the finish signal so a process death after landing
+  never re-runs onboarding and duplicates the loadout; a double-tap guard covers the
+  in-flight window.
+- **Skip on step 1 ("start with an empty list") lands directly on the quest list** —
+  quick-add is the recovery path. Skipping presets also skips the Health Connect step
+  (nothing auto-tracked to power).
+- **Time-to-first-quest-list** is logged to logcat (`Onboarding:
+  time_to_first_quest_list_ms=…`) using monotonic elapsed-realtime, measured from
+  onboarding's first composition to the hand-off to the quest list.
+- **Tap budget:** choose class (1) + connect-or-skip health (1) ≤ 4; the skip path is
+  a single tap.
+
 ---
 
 ## Phase 7 — Monthly reflection [YOU design the flow, DELEGATE the implementation]
@@ -478,7 +517,8 @@ never mutates state directly.
 ## Open decisions
 
 1. ~~Hilt vs Koin~~ — **DECIDED (Phase 0): Hilt** (already in `libs.versions.toml`).
-2. The three starting-class presets and their quest loadouts (blocks Phase 6).
+2. ~~The three starting-class presets and their quest loadouts~~ — **DECIDED: see
+   Phase 6 locked decisions.**
 3. ~~Rest-day absorption rule~~ — **DECIDED: see Phase 1 locked decisions.**
 4. ~~Milestone thresholds & diminishing-returns curve~~ — **DECIDED: see Phase 1
    locked decisions.**

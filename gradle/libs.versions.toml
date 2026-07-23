@@ -16,6 +16,7 @@ room = "2.8.4"
 sqlite = "2.6.2"
 work = "2.10.1"
 healthConnect = "1.1.0"
+datastore = "1.1.7"
 
 hilt = "2.58"
 androidxHilt = "1.2.0"
@@ -51,6 +52,7 @@ sqlite-bundled-jvm = { module = "androidx.sqlite:sqlite-bundled-jvm", version.re
 
 work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "healthConnect" }
+androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt" }
 hilt-compiler = { module = "com.google.dagger:hilt-compiler", version.ref = "hilt" }

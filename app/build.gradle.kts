@@ -57,6 +57,11 @@ dependencies {
     implementation(libs.compose.material.icons.core)
     // Room.databaseBuilder lives here in DI; entities/DAOs stay in :data.
     implementation(libs.room.runtime)
+    // Onboarding: first-run flag persistence.
+    implementation(libs.androidx.datastore.preferences)
+    // Onboarding owns the Health Connect permission-request launcher, mirroring how
+    // this module already owns the POST_NOTIFICATIONS ask; :health only reports status.
+    implementation(libs.health.connect.client)
     debugImplementation(libs.compose.ui.tooling)
     debugImplementation(libs.compose.ui.test.manifest)
 
