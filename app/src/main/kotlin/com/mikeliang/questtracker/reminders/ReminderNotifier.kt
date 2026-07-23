@@ -58,7 +58,12 @@ class ReminderNotifier @Inject constructor(
             )
             .build()
 
-        NotificationManagerCompat.from(context).notify(fireRequestCode(quest.id), notification)
+        try {
+            NotificationManagerCompat.from(context).notify(fireRequestCode(quest.id), notification)
+        } catch (_: SecurityException) {
+            // Permission revoked between the check above and the post: a denial only
+            // ever means silent reminders, never an error.
+        }
     }
 
     /** Remove the posted reminder for [questId] (e.g. after its Complete action). */

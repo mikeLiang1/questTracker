@@ -368,6 +368,34 @@ Task: Implement the profile/progression screen in :app.
   information, not shame; propose neutral copy.
 ```
 
+### Phase 5 decisions (locked during implementation)
+
+- **All profile math and copy come from one pure :core function** (`buildProfile` →
+  `ProfileSummary`, surfaced as `QuestEngine.profile`). The ViewModel snapshots
+  repository state and reshapes; the UI formats layout only. The no-shame copy rules
+  are therefore tested in :core, not enforced by UI discipline.
+- **"N more completions to [title]" is the fastest honest path:**
+  ⌈points-remaining ÷ best base⌉, where best base is the largest per-completion base
+  among the *active* recurring quests feeding the attribute (a weekly completion
+  outruns a daily one). Attributes with no active quests fall back to the daily base
+  (1 point), so a fresh attribute reads "5 completions to Awakened". Full rate is
+  assumed — escalation always restores it, so the estimate is achievable, and a
+  pessimistic diminished-rate estimate would read as punishment.
+- **Untouched-attribute copy is a plain fact:** "No quests feed Social yet" — the
+  lopsided case reads as information, never deficit. With active quests but no
+  history: "No completions banked yet". With history: "N completions over M
+  weeks/days/months" (span from first credited period to today, rounded up).
+- **Consistency is deliberately absent from the profile.** It is quest-scoped, and
+  the profile shows accumulated evidence (which only grows); per-quest consistency
+  rates belong to the quest-detail flow (later phase). This trivially satisfies the
+  no-loss-display rule.
+- **Retired side quests are archived too.** The completed-chapters list is simply
+  every `Retired` quest (newest first) with its banked completion count; gains stay
+  on the attribute cards forever.
+- **Navigation is a two-tab bottom bar with plain Compose state** (Today / Profile)
+  in MainActivity — no navigation library for two destinations. Revisit when a
+  quest-detail screen (and its notification deep link) arrives.
+
 ---
 
 ## Phase 6 — Onboarding [DELEGATE]

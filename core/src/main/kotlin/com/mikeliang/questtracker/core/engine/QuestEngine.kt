@@ -85,6 +85,10 @@ class QuestEngine(private val clock: Clock) {
         )
     }
 
+    /** The profile screen's summary as of today. */
+    fun profile(quests: List<Quest>, completions: List<CompletionRecord>): ProfileSummary =
+        buildProfile(quests, completions, clock.today())
+
     /** Consistency for a recurring [quest] as of today. */
     fun consistency(quest: Quest, completions: List<CompletionRecord>): ConsistencyScore =
         consistencyScore(quest, completions, clock.today(), clock.zone())
