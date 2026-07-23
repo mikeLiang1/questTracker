@@ -241,6 +241,15 @@ ViewModel unit tests using Turbine covering the event → state transitions.
   earned, sits above it all.
 - **Auto-tracked quests keep the manual tick** alongside live progress, honoring the
   design rule that absent health data never blocks completion.
+- **Ticks are un-clearable the same day only.** (Added 2026-07-24.) Tapping a cleared
+  quest's tick again undoes the completion — but only while the completion was banked
+  *by hand, today* in the user's current zone. Overnight it locks forever, and
+  auto-tracked completions are never undoable (the health data would instantly re-bank
+  them). Framed as mis-tap correction, not decay: the design foundation's "no mechanic
+  may take something away" rule is amended to note the user themself may. The undo is
+  silent — no snackbar; the row re-opening is the feedback. Mechanics: `unclearQuest`
+  in :core guards `QuestRepository.deleteCompletion`, the one exception to append-only
+  completions.
 
 ---
 

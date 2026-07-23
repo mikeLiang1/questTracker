@@ -1,5 +1,6 @@
 package com.mikeliang.questtracker.ui.questlist
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -26,7 +28,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -37,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -186,6 +189,7 @@ private fun QuestBoard(
             RecurringQuestRow(
                 item = item,
                 onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) },
+                onUnclear = { onEvent(QuestListEvent.UnclearQuest(item.quest.id)) },
                 onOpen = { onOpenQuest(item.quest.id) },
             )
         }
@@ -209,6 +213,7 @@ private fun QuestBoard(
                 RecurringQuestRow(
                     item = item,
                     onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) },
+                    onUnclear = { onEvent(QuestListEvent.UnclearQuest(item.quest.id)) },
                     onOpen = { onOpenQuest(item.quest.id) },
                 )
             }
@@ -227,6 +232,7 @@ private fun QuestBoard(
                 SideQuestRow(
                     item = item,
                     onComplete = { onEvent(QuestListEvent.CompleteQuest(item.quest.id)) },
+                    onUnclear = { onEvent(QuestListEvent.UnclearQuest(item.quest.id)) },
                     onOpen = { onOpenQuest(item.quest.id) },
                 )
             }
@@ -238,11 +244,22 @@ private fun QuestBoard(
 private fun RecurringQuestRow(
     item: QuestListUiState.RecurringItem,
     onComplete: () -> Unit,
+    onUnclear: () -> Unit = {},
     onOpen: () -> Unit = {},
 ) {
     val kind = item.quest.kind as QuestKind.Recurring
-    Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+    // Clearing is the everyday action, so it owns the whole card: tap clears, tap
+    // again the same day unclears. Navigation to detail is rare and lives on the
+    // explicit chevron instead.
+    Card(
+        onClick = if (item.completed) onUnclear else onComplete,
+        enabled = !item.completed || item.undoable,
+        modifier = Modifier.fillMaxWidth(),
+        colors = lockAwareCardColors(),
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -256,11 +273,12 @@ private fun RecurringQuestRow(
                         QuestBadge(kind.attribute.name)
                     }
                 }
-                CompletionTick(completed = item.completed, onComplete = onComplete)
+                CompletionDot(completed = item.completed, undoable = item.undoable)
+                OpenQuestChevron(onOpen)
             }
             item.progress?.let { progress ->
                 Spacer(Modifier.height(8.dp))
-                AutoProgressBar(progress)
+                AutoProgressBar(progress, modifier = Modifier.padding(end = 12.dp))
             }
         }
     }
@@ -270,19 +288,22 @@ private fun RecurringQuestRow(
 private fun SideQuestRow(
     item: QuestListUiState.SideQuestItem,
     onComplete: () -> Unit,
+    onUnclear: () -> Unit = {},
     onOpen: () -> Unit = {},
 ) {
     // Visually lighter than recurring rows: a tick and a lifetime credit, never
-    // attribute badges — side quests are not growth.
+    // attribute badges — side quests are not growth. Same gesture model as
+    // recurring rows: whole card clears, chevron opens.
     Card(
-        onClick = onOpen,
+        onClick = if (item.completed) onUnclear else onComplete,
+        enabled = !item.completed || item.undoable,
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
+        colors = lockAwareCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
         ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -290,32 +311,77 @@ private fun SideQuestRow(
                 style = MaterialTheme.typography.bodyLarge,
                 modifier = Modifier.weight(1f),
             )
-            CompletionTick(completed = item.completed, onComplete = onComplete)
+            CompletionDot(completed = item.completed, undoable = item.undoable)
+            OpenQuestChevron(onOpen)
         }
     }
 }
 
+/**
+ * Pure status indicator — the card itself is the tap target now. Dims once the
+ * gain is banked overnight and the row locks (gains are permanent).
+ */
 @Composable
-private fun CompletionTick(completed: Boolean, onComplete: () -> Unit) {
-    // RadioButton reads as a calm "done" dot; disabled once banked (gains are
-    // permanent — there is no un-complete).
-    IconButton(onClick = onComplete, enabled = !completed) {
-        RadioButton(selected = completed, onClick = onComplete, enabled = !completed)
+private fun CompletionDot(completed: Boolean, undoable: Boolean = false) {
+    RadioButton(
+        selected = completed,
+        onClick = null,
+        enabled = !completed || undoable,
+    )
+}
+
+/** The one part of a row that navigates instead of clearing. */
+@Composable
+private fun OpenQuestChevron(onOpen: () -> Unit) {
+    IconButton(onClick = onOpen) {
+        Icon(
+            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = "Open quest",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+/**
+ * Card colors whose disabled (banked-and-locked) state keeps the enabled container
+ * — a locked row is finished, not broken, so only the content dims via the
+ * [CompletionDot], never the whole card.
+ */
+@Composable
+private fun lockAwareCardColors(
+    containerColor: Color = CardDefaults.cardColors().containerColor,
+) = CardDefaults.cardColors(
+    containerColor = containerColor,
+    disabledContainerColor = containerColor,
+    disabledContentColor = CardDefaults.cardColors().contentColor,
+)
+
+@Composable
+private fun QuestBadge(label: String) {
+    // Deliberately not a chip: a disabled SuggestionChip still consumes taps, which
+    // left the badge strip as a dead zone inside an otherwise fully tappable card.
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        )
     }
 }
 
 @Composable
-private fun QuestBadge(label: String) {
-    SuggestionChip(onClick = {}, enabled = false, label = {
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    })
-}
-
-@Composable
-private fun AutoProgressBar(progress: QuestListUiState.AutoProgress) {
+private fun AutoProgressBar(
+    progress: QuestListUiState.AutoProgress,
+    modifier: Modifier = Modifier,
+) {
     val format = remember { NumberFormat.getIntegerInstance() }
     val current = progress.current
-    Column {
+    Column(modifier = modifier) {
         LinearProgressIndicator(
             progress = {
                 if (current == null) 0f
@@ -381,6 +447,7 @@ private val previewListState = QuestListUiState(
             ),
             completed = true,
             progress = null,
+            undoable = true,
         ),
         QuestListUiState.RecurringItem(
             quest = previewQuest(
@@ -393,7 +460,7 @@ private val previewListState = QuestListUiState(
     ),
     sideQuests = listOf(
         QuestListUiState.SideQuestItem(previewQuest("s1", "Book dentist", QuestKind.SideQuest), completed = false),
-        QuestListUiState.SideQuestItem(previewQuest("s2", "Renew rego", QuestKind.SideQuest), completed = true),
+        QuestListUiState.SideQuestItem(previewQuest("s2", "Renew rego", QuestKind.SideQuest), completed = true, undoable = true),
     ),
 )
 

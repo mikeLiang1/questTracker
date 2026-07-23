@@ -32,7 +32,16 @@ class QuestEngine(private val clock: Clock) {
 
     /** Today's board in the user's current zone. */
     fun todayBoard(quests: List<Quest>, completions: List<CompletionRecord>): TodayBoard =
-        buildTodayBoard(quests, completions, clock.today())
+        buildTodayBoard(quests, completions, clock.today(), clock.zone())
+
+    /**
+     * Un-clears (undoes) today's manual completion of [quest] — the same-day mis-tap
+     * exception to "gains are permanent". Caller deletes the returned record via
+     * [com.mikeliang.questtracker.core.repository.QuestRepository.deleteCompletion];
+     * anything banked before today, or banked by health data, stays banked.
+     */
+    fun unclear(quest: Quest, completions: List<CompletionRecord>): UnclearOutcome =
+        unclearQuest(quest, completions, clock.today(), clock.zone())
 
     /**
      * Completes [quest] now. Credits the period containing this moment in the user's

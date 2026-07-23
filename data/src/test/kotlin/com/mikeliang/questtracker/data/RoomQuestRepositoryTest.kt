@@ -134,6 +134,19 @@ class RoomQuestRepositoryTest {
     }
 
     @Test
+    fun `deleteCompletion removes only the matching record`() = runTest {
+        val quest = recurringQuest(id = "quest-1")
+        val misTap = completion(quest, LocalDate.parse("2026-01-02"))
+        val banked = completion(quest, LocalDate.parse("2026-01-01"))
+
+        repository.recordCompletion(misTap)
+        repository.recordCompletion(banked)
+        repository.deleteCompletion(misTap)
+
+        assertEquals(listOf(banked), repository.completionsFor(QuestId("quest-1")))
+    }
+
+    @Test
     fun `observeCompletions reflects every recorded completion`() = runTest {
         val quest = recurringQuest(id = "quest-1")
         val record = completion(quest, LocalDate.parse("2026-01-01"))

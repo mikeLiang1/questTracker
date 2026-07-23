@@ -73,7 +73,7 @@ class FakeHealthDataSource : HealthDataSource {
         flowOf(HealthReading.Unavailable)
 }
 
-/** In-memory [QuestRepository]. Append-only for completions, like the real one. */
+/** In-memory [QuestRepository]. Completions append-only bar the mis-tap undo, like the real one. */
 class FakeQuestRepository : com.mikeliang.questtracker.core.repository.QuestRepository {
 
     private val quests = MutableStateFlow<List<Quest>>(emptyList())
@@ -105,6 +105,12 @@ class FakeQuestRepository : com.mikeliang.questtracker.core.repository.QuestRepo
 
     override suspend fun recordCompletion(record: CompletionRecord) {
         completions.value = completions.value + record
+    }
+
+    override suspend fun deleteCompletion(record: CompletionRecord) {
+        completions.value = completions.value.filterNot {
+            it.questId == record.questId && it.completedAt == record.completedAt
+        }
     }
 
     override suspend fun completionsFor(questId: QuestId): List<CompletionRecord> =

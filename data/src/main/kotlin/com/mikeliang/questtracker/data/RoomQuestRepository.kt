@@ -33,6 +33,9 @@ class RoomQuestRepository(
     override suspend fun recordCompletion(record: CompletionRecord) =
         completionDao.insert(record.toEntity())
 
+    override suspend fun deleteCompletion(record: CompletionRecord) =
+        completionDao.delete(record.questId.value, record.completedAt.toEpochMilli())
+
     override suspend fun completionsFor(questId: QuestId): List<CompletionRecord> =
         completionDao.completionsFor(questId.value).map { it.toDomain() }
 

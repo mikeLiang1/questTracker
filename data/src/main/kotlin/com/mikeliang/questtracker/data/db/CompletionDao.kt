@@ -14,6 +14,14 @@ interface CompletionDao {
     @Insert
     suspend fun insert(completion: CompletionEntity)
 
+    /**
+     * Backs the same-day mis-tap undo — the one exception to append-only completions.
+     * Keyed on (questId, completedAt): the engine never banks the same quest twice in
+     * the same instant, so this deletes at most the one record the undo targeted.
+     */
+    @Query("DELETE FROM completions WHERE questId = :questId AND completedAtEpochMillis = :completedAtEpochMillis")
+    suspend fun delete(questId: String, completedAtEpochMillis: Long)
+
     @Query("SELECT * FROM completions WHERE questId = :questId")
     suspend fun completionsFor(questId: String): List<CompletionEntity>
 

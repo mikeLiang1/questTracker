@@ -27,12 +27,16 @@ data class QuestListUiState(
         val quest: Quest,
         val completed: Boolean,
         val progress: AutoProgress?,
+        /** True while today's manual tick can still be un-cleared (same-day mis-tap window). */
+        val undoable: Boolean = false,
     )
 
     /** An open (or just-ticked-today) side quest. */
     data class SideQuestItem(
         val quest: Quest,
         val completed: Boolean,
+        /** Same-day mis-tap window, as on [RecurringItem.undoable]. */
+        val undoable: Boolean = false,
     )
 
     /** Live auto-tracking readout. [current] is null while the source has no data. */
@@ -60,6 +64,9 @@ sealed interface QuestListEvent {
 
     /** One-tap manual completion (recurring or side quest). */
     data class CompleteQuest(val id: QuestId) : QuestListEvent
+
+    /** Tap-again undo of today's manual completion; a no-op once the gain is banked overnight. */
+    data class UnclearQuest(val id: QuestId) : QuestListEvent
 
     /** Quick-add default path: capture a side quest, optionally with a reminder. */
     data class AddSideQuest(

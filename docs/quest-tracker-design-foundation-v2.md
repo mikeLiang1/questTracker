@@ -99,6 +99,10 @@ sustain.
 
 - **Cumulative & permanent:** gains bank forever, never decay. Hard rule: *no mechanic
   anywhere may take something away from the user* (loss aversion: losses hurt ~2x).
+  One narrow exception (added 2026-07-24): the user themself may un-clear a completion
+  they banked *by hand earlier the same day* — that's mis-tap correction, not decay,
+  and no mechanic is doing the taking. Once the day rolls over the gain locks forever,
+  and auto-tracked completions are never undoable.
 - **Time-gated:** dailies/weeklies/monthlies are different progression tracks on
   different clocks; something is always near a payoff. The app actively tells the user
   when they're **done for today** — anti-compulsion by design.

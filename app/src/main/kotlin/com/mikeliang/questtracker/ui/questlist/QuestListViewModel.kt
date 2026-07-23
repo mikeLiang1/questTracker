@@ -7,6 +7,7 @@ import com.mikeliang.questtracker.core.engine.CompletionFeedback
 import com.mikeliang.questtracker.core.engine.CompletionOutcome
 import com.mikeliang.questtracker.core.engine.QuestEngine
 import com.mikeliang.questtracker.core.engine.TodayBoard
+import com.mikeliang.questtracker.core.engine.UnclearOutcome
 import com.mikeliang.questtracker.core.health.HealthDataSource
 import com.mikeliang.questtracker.core.health.HealthReading
 import com.mikeliang.questtracker.core.model.Cadence
@@ -88,10 +89,11 @@ class QuestListViewModel @Inject constructor(
                                 target = auto.dailyTarget,
                             )
                         },
+                        undoable = due.undoable,
                     )
                 },
                 sideQuests = current.sideQuests.map {
-                    QuestListUiState.SideQuestItem(it.quest, it.completed)
+                    QuestListUiState.SideQuestItem(it.quest, it.completed, undoable = it.undoable)
                 },
                 doneForToday = current.doneForToday,
                 feedback = pendingFeedback,
@@ -105,6 +107,7 @@ class QuestListViewModel @Inject constructor(
     fun onEvent(event: QuestListEvent) {
         when (event) {
             is QuestListEvent.CompleteQuest -> completeQuest(event.id)
+            is QuestListEvent.UnclearQuest -> unclearQuest(event.id)
             is QuestListEvent.AddSideQuest -> addSideQuest(event)
             is QuestListEvent.AddRecurringQuest -> addRecurringQuest(event)
             QuestListEvent.FeedbackShown -> feedback.value = null
@@ -181,6 +184,20 @@ class QuestListViewModel @Inject constructor(
                 }
 
                 CompletionOutcome.AlreadyCompleted -> Unit
+            }
+        }
+    }
+
+    private fun unclearQuest(id: QuestId) {
+        viewModelScope.launch {
+            val quests = repository.observeQuests().first()
+            val completions = repository.observeCompletions().first()
+            val quest = quests.firstOrNull { it.id == id } ?: return@launch
+            when (val outcome = engine.unclear(quest, completions)) {
+                // Silent revert: the row re-opening is the feedback. No copy — undoing
+                // a mis-tap is not an achievement and not a failure.
+                is UnclearOutcome.Uncleared -> repository.deleteCompletion(outcome.record)
+                UnclearOutcome.NotUndoable -> Unit
             }
         }
     }

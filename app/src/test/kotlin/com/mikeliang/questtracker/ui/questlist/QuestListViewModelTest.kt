@@ -9,6 +9,8 @@ import com.mikeliang.questtracker.core.health.HealthReading
 import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.AutoTracking
 import com.mikeliang.questtracker.core.model.Cadence
+import com.mikeliang.questtracker.core.model.CompletionRecord
+import com.mikeliang.questtracker.core.model.CompletionSource
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.core.model.QuestKind
@@ -16,6 +18,7 @@ import com.mikeliang.questtracker.core.model.QuestType
 import com.mikeliang.questtracker.core.model.ReminderSchedule
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -141,6 +144,52 @@ class QuestListViewModelTest {
             awaitUntil { it.feedback == null }
 
             vm.onEvent(QuestListEvent.CompleteQuest(QuestId("quest-1")))
+            expectNoEvents()
+            assertEquals(1, repository.recordedCompletions.size)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `UnclearQuest undoes a same-day tick and re-opens the quest`() = runTest {
+        repository.seed(recurringQuest())
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading && it.recurring.isNotEmpty() }
+
+            vm.onEvent(QuestListEvent.CompleteQuest(QuestId("quest-1")))
+            val completed = awaitUntil { it.recurring.firstOrNull()?.completed == true }
+            assertTrue(completed.recurring.single().undoable)
+
+            vm.onEvent(QuestListEvent.UnclearQuest(QuestId("quest-1")))
+
+            awaitUntil { it.recurring.firstOrNull()?.completed == false }
+            assertTrue(repository.recordedCompletions.isEmpty())
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `UnclearQuest is a no-op for a completion banked before today`() = runTest {
+        // Weekly cleared on Monday the 13th; clock is Friday the 17th — banked forever.
+        val weekly = recurringQuest(id = "w", title = "Long run", cadence = Cadence.Weekly)
+        repository.seed(weekly)
+        repository.recordCompletion(
+            CompletionRecord(
+                questId = QuestId("w"),
+                completedAt = Instant.parse("2026-07-13T09:00:00Z"),
+                periodStart = LocalDate.parse("2026-07-13"),
+                source = CompletionSource.Manual,
+            )
+        )
+        val vm = viewModel()
+
+        vm.uiState.test {
+            val state = awaitUntil { it.recurring.firstOrNull()?.completed == true }
+            assertFalse(state.recurring.single().undoable)
+
+            vm.onEvent(QuestListEvent.UnclearQuest(QuestId("w")))
             expectNoEvents()
             assertEquals(1, repository.recordedCompletions.size)
             cancelAndIgnoreRemainingEvents()

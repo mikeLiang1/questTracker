@@ -47,6 +47,12 @@ class FakeQuestRepository : QuestRepository {
         completions.update { it + record }
     }
 
+    override suspend fun deleteCompletion(record: CompletionRecord) {
+        completions.update { list ->
+            list.filterNot { it.questId == record.questId && it.completedAt == record.completedAt }
+        }
+    }
+
     override suspend fun completionsFor(questId: QuestId): List<CompletionRecord> =
         completions.value.filter { it.questId == questId }
 

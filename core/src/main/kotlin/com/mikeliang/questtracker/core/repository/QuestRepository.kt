@@ -8,8 +8,8 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Persistence seam, implemented by :data (Room). Completions are append-only —
- * there is deliberately no way to delete or edit a completion, because gains are
- * permanent.
+ * gains are permanent — with one narrow exception: [deleteCompletion] backs the
+ * same-day mis-tap undo (see `unclearQuest` in the engine).
  */
 interface QuestRepository {
 
@@ -32,6 +32,13 @@ interface QuestRepository {
     suspend fun deleteQuest(id: QuestId)
 
     suspend fun recordCompletion(record: CompletionRecord)
+
+    /**
+     * Removes one banked completion. Only legal for the same-day mis-tap undo — the
+     * guard is `QuestEngine.unclear` in :core, which callers must pass first; the
+     * repository is deliberately dumb, mirroring [deleteQuest]/`canDeleteQuest`.
+     */
+    suspend fun deleteCompletion(record: CompletionRecord)
 
     suspend fun completionsFor(questId: QuestId): List<CompletionRecord>
 
