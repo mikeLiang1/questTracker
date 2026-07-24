@@ -1,5 +1,7 @@
 package com.mikeliang.questtracker.ui.questlog
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,9 +14,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -22,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -33,13 +40,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.mikeliang.questtracker.core.engine.QuestLogDay
 import com.mikeliang.questtracker.core.engine.QuestLogItem
 import com.mikeliang.questtracker.core.model.JournalEntry
 import com.mikeliang.questtracker.core.model.QuestId
@@ -47,6 +59,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 
 /**
  * Stateful entry point: hooks the ViewModel up to the stateless content. [onOpenQuest]
@@ -72,6 +85,11 @@ fun QuestLogContent(
     val snackbarHostState = remember { SnackbarHostState() }
     var showWrite by remember { mutableStateOf(false) }
     var editingEntry by remember { mutableStateOf<JournalEntry?>(null) }
+    var showCalendar by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    // The day just jumped to, briefly tinted so the landing is visible; cleared below.
+    var highlightedDay by remember { mutableStateOf<LocalDate?>(null) }
 
     val feedback = state.feedback
     LaunchedEffect(feedback) {
@@ -80,9 +98,27 @@ fun QuestLogContent(
             onEvent(QuestLogEvent.FeedbackShown)
         }
     }
+    LaunchedEffect(highlightedDay) {
+        if (highlightedDay != null) {
+            delay(1600)
+            highlightedDay = null
+        }
+    }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Quest Log") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Quest Log") },
+                actions = {
+                    // A finder over the Log — only offered once there's history to find.
+                    if (state.today != null && state.days.isNotEmpty()) {
+                        IconButton(onClick = { showCalendar = true }) {
+                            Icon(Icons.Filled.DateRange, contentDescription = "Jump to a date")
+                        }
+                    }
+                },
+            )
+        },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             FloatingActionButton(onClick = { showWrite = true }) {
@@ -94,8 +130,33 @@ fun QuestLogContent(
             when {
                 state.loading -> LoadingState()
                 state.isEmpty -> EmptyState()
-                else -> Timeline(state, onOpenQuest, onOpenEntry = { editingEntry = it })
+                else -> Timeline(
+                    state = state,
+                    listState = listState,
+                    highlightedDay = highlightedDay,
+                    onOpenQuest = onOpenQuest,
+                    onOpenEntry = { editingEntry = it },
+                )
             }
+        }
+    }
+
+    if (showCalendar) {
+        val today = state.today
+        if (today != null) {
+            CalendarSheet(
+                presentDays = state.days.mapTo(HashSet()) { it.date },
+                today = today,
+                onSelectDay = { day ->
+                    showCalendar = false
+                    val index = dayHeaderIndex(state.days, day)
+                    if (index >= 0) {
+                        scope.launch { listState.scrollToItem(index) }
+                        highlightedDay = day
+                    }
+                },
+                onDismiss = { showCalendar = false },
+            )
         }
     }
 
@@ -129,20 +190,22 @@ fun QuestLogContent(
 @Composable
 private fun Timeline(
     state: QuestLogUiState,
+    listState: LazyListState,
+    highlightedDay: LocalDate?,
     onOpenQuest: (QuestId, LocalDate) -> Unit,
     onOpenEntry: (JournalEntry) -> Unit,
 ) {
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 96.dp),
     ) {
         state.days.forEach { day ->
             item(key = "day-${day.date}") {
-                Text(
-                    text = dayLabel(day.date, state.today),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+                DayHeader(
+                    date = day.date,
+                    today = state.today,
+                    highlighted = day.date == highlightedDay,
                 )
             }
             items(day.items, key = { it.key }) { item ->
@@ -156,6 +219,47 @@ private fun Timeline(
             }
         }
     }
+}
+
+/**
+ * A day's header. When [highlighted] (just jumped to from the calendar) it wears a brief
+ * tint so the landing is visible; the tint fades back on its own. This is an orientation
+ * cue, never a status — no day is ever coloured to mean success or failure.
+ */
+@Composable
+private fun DayHeader(date: LocalDate, today: LocalDate?, highlighted: Boolean) {
+    val tint by animateColorAsState(
+        targetValue = if (highlighted) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            Color.Transparent
+        },
+        label = "dayHighlight",
+    )
+    Text(
+        text = dayLabel(date, today),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .padding(top = 16.dp, bottom = 8.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(tint)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+    )
+}
+
+/**
+ * Flat [LazyColumn] index of [day]'s header: each preceding day contributes one header
+ * plus its items. Returns -1 if the day isn't in the timeline (can't happen — only days
+ * with content are selectable in the calendar).
+ */
+private fun dayHeaderIndex(days: List<QuestLogDay>, day: LocalDate): Int {
+    var index = 0
+    for (d in days) {
+        if (d.date == day) return index
+        index += 1 + d.items.size
+    }
+    return -1
 }
 
 /** Stable LazyColumn key: entries by id, completions by quest + moment. */

@@ -397,13 +397,14 @@ private fun SwipeToClear(
     // when the state was first remembered.
     val currentOnToggle by rememberUpdatedState(onToggle)
     val state = rememberSwipeToDismissBoxState()
-    // Fire on release, not on threshold cross. confirmValueChange runs mid-drag
-    // the instant the row passes the threshold, so the quest cleared before the
-    // finger lifted. Watching the settled value instead waits for the let-go: the
-    // row settles to a dismissed anchor only after release, and we snap it straight
-    // back so the banked gain stays on screen (the row is never truly dismissed).
+    // Fire on release, not on threshold cross. Both confirmValueChange and
+    // currentValue flip mid-drag the instant the row passes the threshold, so the
+    // quest cleared before the finger lifted. settledValue is the only value that
+    // waits for the let-go: it changes when the row animates to rest at a dismissed
+    // anchor after release, and we snap it straight back so the banked gain stays on
+    // screen (the row is never truly dismissed).
     LaunchedEffect(state) {
-        snapshotFlow { state.currentValue }
+        snapshotFlow { state.settledValue }
             .collect { value ->
                 if (value != SwipeToDismissBoxValue.Settled) {
                     currentOnToggle()

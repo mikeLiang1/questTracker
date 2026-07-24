@@ -371,6 +371,29 @@ class QuestListViewModelTest {
     }
 
     @Test
+    fun `explicitly chosen reminder days are honoured verbatim over the cadence default`() = runTest {
+        val vm = viewModel()
+
+        vm.uiState.test {
+            awaitUntil { !it.loading }
+
+            val chosen = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)
+            vm.onEvent(
+                QuestListEvent.AddRecurringQuest(
+                    "Train", Cadence.Daily, Attribute.Body, LocalTime.of(18, 0),
+                    reminderDays = chosen,
+                )
+            )
+
+            val state = awaitUntil { it.recurring.isNotEmpty() }
+            val reminder = state.recurring.single().quest.reminder as ReminderSchedule.Recurring
+            assertEquals(chosen, reminder.days)
+            assertEquals(LocalTime.of(18, 0), reminder.time)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `auto-tracked quest exposes live progress from the health source`() = runTest {
         repository.seed(
             recurringQuest(id = "steps", title = "10k steps", autoTracking = AutoTracking(HealthMetric.Steps, 8000.0))

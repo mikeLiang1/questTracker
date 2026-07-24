@@ -26,8 +26,12 @@ import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.ui.common.AttributePicker
 import com.mikeliang.questtracker.ui.common.CadencePicker
+import com.mikeliang.questtracker.ui.common.DayOfWeekPicker
+import com.mikeliang.questtracker.ui.common.DayPresetRow
 import com.mikeliang.questtracker.ui.common.ReminderTimeChip
 import com.mikeliang.questtracker.ui.common.ReminderTimePickerDialog
+import com.mikeliang.questtracker.ui.common.everyDay
+import java.time.DayOfWeek
 import java.time.LocalTime
 
 /**
@@ -48,12 +52,15 @@ fun QuickAddSheet(
     var cadence by remember { mutableStateOf(Cadence.Daily) }
     var attribute by remember { mutableStateOf(Attribute.Discipline) }
     var journalLinked by remember { mutableStateOf(false) }
+    var reminderDays by remember { mutableStateOf(everyDay) }
 
     fun save() {
         if (title.isBlank()) return
         onEvent(
             if (recurring) {
-                QuestListEvent.AddRecurringQuest(title, cadence, attribute, reminderTime, journalLinked)
+                QuestListEvent.AddRecurringQuest(
+                    title, cadence, attribute, reminderTime, journalLinked, reminderDays,
+                )
             } else {
                 QuestListEvent.AddSideQuest(title, reminderTime)
             }
@@ -104,6 +111,22 @@ fun QuickAddSheet(
                     onClick = { journalLinked = !journalLinked },
                     label = { Text("Completes when I journal") },
                 )
+
+                // Reminder days only matter once there's a reminder time to fire.
+                if (reminderTime != null) {
+                    Spacer(Modifier.height(12.dp))
+                    Text("Remind me on", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(4.dp))
+                    DayPresetRow(selected = reminderDays, onSelect = { reminderDays = it })
+                    Spacer(Modifier.height(8.dp))
+                    DayOfWeekPicker(
+                        selected = reminderDays,
+                        onToggle = { day ->
+                            reminderDays =
+                                if (day in reminderDays) reminderDays - day else reminderDays + day
+                        },
+                    )
+                }
             }
 
             Spacer(Modifier.height(20.dp))

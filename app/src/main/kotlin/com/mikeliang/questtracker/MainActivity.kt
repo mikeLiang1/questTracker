@@ -16,11 +16,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +36,7 @@ import androidx.core.content.ContextCompat
 import com.mikeliang.questtracker.core.model.QuestId
 import com.mikeliang.questtracker.health.HealthSyncScheduler
 import com.mikeliang.questtracker.onboarding.OnboardingStateStore
+import com.mikeliang.questtracker.reminders.ReminderPermissions
 import com.mikeliang.questtracker.ui.onboarding.OnboardingScreen
 import com.mikeliang.questtracker.ui.profile.ProfileScreen
 import com.mikeliang.questtracker.ui.questdetail.QuestDetailScreen
@@ -50,6 +53,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var healthSyncScheduler: HealthSyncScheduler
     @Inject lateinit var onboardingStateStore: OnboardingStateStore
+    @Inject lateinit var reminderPermissions: ReminderPermissions
 
     // Notifications are optional: a denial just means reminders stay silent. We ask once
     // and never re-prompt or gate anything on the answer. Fresh installs are asked only
@@ -75,20 +79,76 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun Root() {
         var needsOnboarding by remember { mutableStateOf<Boolean?>(null) }
+        // Shown when reminders can't be scheduled exactly — the Android 12+ "Alarms &
+        // reminders" access, which is off by default on 14+. Without it the OS batches
+        // our alarms, so they arrive late or, on aggressive OEMs, effectively never.
+        var showExactAlarmPrompt by remember { mutableStateOf(false) }
+
+        // Both reminder asks fire at the same moment: after onboarding on a fresh
+        // install, at launch for a returning user. Neither gates anything — a decline
+        // just means quieter or less punctual reminders, never a blocked app.
+        fun askReminderPermissions() {
+            maybeRequestNotificationPermission()
+            if (!reminderPermissions.canScheduleExactAlarms()) showExactAlarmPrompt = true
+        }
+
         LaunchedEffect(Unit) {
             val complete = onboardingStateStore.isOnboardingComplete()
             needsOnboarding = !complete
-            // Returning users keep the launch-time ask.
-            if (complete) maybeRequestNotificationPermission()
+            // Returning users keep the launch-time asks.
+            if (complete) askReminderPermissions()
         }
         when (needsOnboarding) {
             null -> Unit // one blank frame while DataStore resolves
             true -> OnboardingScreen(onFinished = {
                 needsOnboarding = false
-                maybeRequestNotificationPermission()
+                askReminderPermissions()
             })
             false -> HomeScaffold()
         }
+
+        if (showExactAlarmPrompt) {
+            ExactAlarmPrompt(
+                onAllow = {
+                    showExactAlarmPrompt = false
+                    openExactAlarmSettings()
+                },
+                onDismiss = { showExactAlarmPrompt = false },
+            )
+        }
+    }
+
+    /**
+     * One-time, dismissible nudge toward exact-alarm access. The copy is factual with no
+     * shame, and "Not now" is a first-class choice — §8's rule that the app never coerces.
+     * It is `remember`, not persisted, so it reappears on a later launch only while the
+     * access is still missing and never once it is granted: a user who declines is never
+     * permanently stuck with late reminders.
+     */
+    @Composable
+    private fun ExactAlarmPrompt(onAllow: () -> Unit, onDismiss: () -> Unit) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Get reminders on time") },
+            text = {
+                Text(
+                    "To have your quest reminders arrive at the exact time you set, allow " +
+                        "“Alarms & reminders” for Quest. Without it, Android can delay them.",
+                )
+            },
+            confirmButton = { TextButton(onClick = onAllow) { Text("Allow") } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Not now") } },
+        )
+    }
+
+    /**
+     * Opens the system "Alarms & reminders" screen for this app. The intent is null below
+     * Android 12 (the access doesn't exist there) and a missing settings activity is
+     * swallowed — either way reminders simply stay on the inexact fallback.
+     */
+    private fun openExactAlarmSettings() {
+        val intent = reminderPermissions.exactAlarmSettingsIntent() ?: return
+        runCatching { startActivity(intent) }
     }
 
     override fun onStart() {

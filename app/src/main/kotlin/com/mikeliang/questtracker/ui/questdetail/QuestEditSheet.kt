@@ -30,6 +30,7 @@ import com.mikeliang.questtracker.core.model.ReminderSchedule
 import com.mikeliang.questtracker.ui.common.AttributePicker
 import com.mikeliang.questtracker.ui.common.CadencePicker
 import com.mikeliang.questtracker.ui.common.DayOfWeekPicker
+import com.mikeliang.questtracker.ui.common.DayPresetRow
 import com.mikeliang.questtracker.ui.common.ReminderTimeChip
 import com.mikeliang.questtracker.ui.common.ReminderTimePickerDialog
 import java.time.DayOfWeek
@@ -133,6 +134,8 @@ private fun RecurringEditSheet(
                 },
             )
             if (reminderTime != null) {
+                Spacer(Modifier.height(8.dp))
+                DayPresetRow(selected = reminderDays, onSelect = { reminderDays = it })
                 Spacer(Modifier.height(8.dp))
                 DayOfWeekPicker(
                     selected = reminderDays,

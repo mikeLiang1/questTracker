@@ -50,6 +50,39 @@ fun AttributePicker(selected: Attribute, onSelect: (Attribute) -> Unit) {
     }
 }
 
+/** The common weekday patterns, offered as one-tap presets above the per-day chips. */
+val everyDay: Set<DayOfWeek> = DayOfWeek.entries.toSet()
+val weekdays: Set<DayOfWeek> = setOf(
+    DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY,
+)
+val weekends: Set<DayOfWeek> = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
+
+/**
+ * One-tap shortcuts for the usual reminder-day patterns. A chip reads as selected when
+ * the current [selected] set matches it exactly, so it also doubles as a readout of what
+ * the per-day chips below add up to.
+ */
+@Composable
+fun DayPresetRow(selected: Set<DayOfWeek>, onSelect: (Set<DayOfWeek>) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FilterChip(
+            selected = selected == everyDay,
+            onClick = { onSelect(everyDay) },
+            label = { Text("Every day") },
+        )
+        FilterChip(
+            selected = selected == weekdays,
+            onClick = { onSelect(weekdays) },
+            label = { Text("Weekdays") },
+        )
+        FilterChip(
+            selected = selected == weekends,
+            onClick = { onSelect(weekends) },
+            label = { Text("Weekends") },
+        )
+    }
+}
+
 /** Multi-select day-of-week chips for a recurring reminder's days. */
 @Composable
 fun DayOfWeekPicker(selected: Set<DayOfWeek>, onToggle: (DayOfWeek) -> Unit) {

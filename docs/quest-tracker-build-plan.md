@@ -704,7 +704,7 @@ plan (see the §8 amendment in the design foundation):
 
 ---
 
-## Phase 9 — Calendar day-finder [PLANNED, not started]
+## Phase 9 — Calendar day-finder [BUILT 2026-07]
 
 Goal (user, 2026-07-24): jump to a specific date and see what was completed and what
 was written that day. A navigation surface over the Quest Log, **not** a new data
@@ -724,6 +724,86 @@ directly. (The rejected (b) — a separate `:core` day view unioning entries wit
 completions — would have meant two code paths over the same data.) Phase 9 is therefore
 purely a navigation surface: a month grid whose cells jump to an existing `QuestLogDay`.
 The presence-only constraint above still stands — no streak grid, no heat map.
+
+### Phase 9 decisions (locked during implementation)
+
+- **Entry point is a calendar icon in the Quest Log `TopAppBar`, not a 4th tab** (user,
+  2026-07-24). Framing it as a finder *over the Log* keeps it a view, not a loop; the
+  icon only shows once there is history to find (`today != null && days.isNotEmpty()`).
+- **A tapped day scrolls the existing Log timeline to that day's header** (user,
+  2026-07-24) rather than opening a separate single-day screen — one reading surface,
+  and the user can scroll around neighbouring days. The flat `LazyColumn` index is
+  computed from `days` (each preceding day = 1 header + its items) and jumped to with an
+  instant `scrollToItem`. A brief `secondaryContainer` tint on the landed header (fades
+  after 1.6s) confirms the landing — an orientation cue, never a status colour.
+- **No new data model, no `:core` engine change, no repository/DAO/migration.** The grid
+  is built from `QuestLogUiState.days` + `today` alone; presence = the set of dates
+  already in `days`, so calendar and timeline can never disagree about which day a thing
+  is on. The only `:core` addition is `buildCalendarMonth` (pure grid layout beside
+  `QuestPeriods`), unit-tested.
+- **Weeks are Monday-first**, matching the engine's ISO weeks (`periodContaining`).
+- **Dots and taps are limited to in-month days.** Adjacent-month padding cells render
+  faint and inert even if they have content, so each month's grid only ever speaks about
+  its own days (a June 30 dot appears when viewing June, not as a stray mark in July).
+- **Month navigation is bounded** to `[earliest month with data, current month]` — no
+  wandering into empty past months, and nothing lives in the future yet (upcoming
+  scheduled quests remains the open v1.5 item, deliberately not folded in here).
+
+---
+
+## Phase 10 — Flexible reminders & scheduling [IN PROGRESS]
+
+Goal (user, 2026-07-24): richer control over *when* a quest nudges and *when it starts*,
+beyond today's single "every day at one time." The user's original asks: remind on
+specific days, "x times a week," a monthly quest on a specific day, and delaying when a
+quest starts.
+
+### Locked decisions (from the planning conversation, 2026-07-24)
+
+- **The identity firewall carries the time model.** Recurring quests use *cue* reminders
+  — the reminder time is the doing time ("at 7pm I train"; implementation intentions,
+  design foundation §8). Side quests use *deadline* reminders ("rego due the 15th —
+  remind me the morning of"). The user's "work calendar" instinct maps onto the
+  **side-quest lane**, which keeps the consistency/period engine untouched.
+- **Nothing ever goes overdue/red.** A dated side quest whose date passes just becomes a
+  normal open side quest — never "late," never punished (§5; and no heat-map/streak-grid,
+  per the Phase 9 constraint).
+- **One reminder per quest**, made richer — not multiple reminders per quest.
+- **"X times a week" = specific chosen weekdays**, not a flexible count. (Flexible-count —
+  "3 days a week, any days" — was explicitly declined; noted as a known limitation, see
+  10a below.)
+- **Monthly is option C: a day-of-month *nudge*, not a due date.** The quest still credits
+  its normal calendar-month period (accrual, consistency, rest-day absorption, frozen
+  `periodStart` all stay byte-identical); the anchor day only controls when the reminder
+  fires and (10c) when the quest surfaces. Reworking due-date/miss semantics (option B)
+  was declined as reopening the most safety-critical part of the engine.
+
+### Sub-phases (each stoppable and verified per the working rhythm)
+
+- **10a — Surface the weekday picker in quick-add [BUILT 2026-07-24].** The
+  `Set<DayOfWeek>` reminder-day model already existed but was only reachable from the
+  buried edit sheet; quick-add always defaulted to every-day. Quick-add now shows a
+  "Remind me on" section (Every day / Weekdays / Weekends presets + per-day chips) once a
+  recurring quest has a reminder time, and the same preset row was added above the edit
+  sheet's existing picker. `AddRecurringQuest` gained `reminderDays: Set<DayOfWeek> =
+  emptySet()`; empty falls back to the old per-cadence default so programmatic callers
+  (reflection add-quest, tests) are unchanged. **No model or engine change.**
+  - *Known limitation surfaced here, not yet addressed:* reminder days ≠ the quest's
+    completion schedule. A Daily quest reminded only Mon/Wed/Fri is still *due* every day,
+    so skipping Tue/Thu reads as misses in consistency (softened by rest-day absorption
+    but not eliminated). A true "3x/week, any days" quest needs the declined flexible-count
+    concept. The 10a UI is labelled "Remind me on" to keep it honestly scoped to reminders.
+- **10b — Day-of-month nudge for monthly quests [NOT STARTED].** Add
+  `ReminderSchedule.MonthlyDay(time, dayOfMonth)`, clamping e.g. the 31st to a short
+  month's last day. Extend the pure `nextReminderAfter` with a monthly branch (existing
+  completed-period suppression still applies). Small Room migration (reminders persist on
+  the quest) + `:core` tests. UI: a day-of-month picker when cadence = Monthly.
+- **10c — Scheduled start + dated side quests [NOT STARTED].** Add `Quest.startsOn:
+  LocalDate?` as the unifying "surface from" primitive. Recurring → delayed start (hidden
+  and silent until the date; consistency floored there, same mechanism as
+  `cadenceChangedOn`). Side quest → appointment date (surfaces on the day, reminder offset
+  "at the time / morning of / an hour before"). Board filtering respects `startsOn`;
+  migration + tests. No overdue/red state anywhere.
 
 ---
 

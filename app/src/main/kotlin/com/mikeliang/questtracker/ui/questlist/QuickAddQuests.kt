@@ -45,7 +45,9 @@ fun questFromQuickAdd(event: QuestListEvent, clock: Clock): Quest? = when (event
                 journalLinked = event.journalLinked,
             ),
             createdAt = clock.now(),
-            reminder = event.reminderTime?.let { reminderScheduleFor(event.cadence, it, clock) },
+            reminder = event.reminderTime?.let {
+                reminderScheduleFor(event.cadence, it, event.reminderDays, clock)
+            },
         )
     }
 
@@ -55,17 +57,25 @@ fun questFromQuickAdd(event: QuestListEvent, clock: Clock): Quest? = when (event
 private fun newQuestId(): QuestId = QuestId(UUID.randomUUID().toString())
 
 /**
- * Quick-added recurring reminders: dailies nudge every day; weeklies and monthlies
- * nudge once a week on the day the quest was created — the sheet has no day picker,
- * and a weekly nudge is the least-surprising default. Editable from the quest's
- * detail screen.
+ * Quick-added recurring reminders. When the user picks [days] explicitly (the quick-add
+ * sheet's weekday picker), those are honoured verbatim. When [days] is empty — a
+ * programmatic caller that skipped the picker — fall back to the per-cadence default:
+ * dailies nudge every day; weeklies and monthlies nudge once a week on the day the quest
+ * was created. Editable later from the quest's detail screen.
  */
-private fun reminderScheduleFor(cadence: Cadence, time: LocalTime, clock: Clock): ReminderSchedule =
+private fun reminderScheduleFor(
+    cadence: Cadence,
+    time: LocalTime,
+    days: Set<DayOfWeek>,
+    clock: Clock,
+): ReminderSchedule =
     ReminderSchedule.Recurring(
         time = time,
-        days = when (cadence) {
-            Cadence.Daily -> DayOfWeek.entries.toSet()
-            Cadence.Weekly, Cadence.Monthly -> setOf(clock.today().dayOfWeek)
+        days = days.ifEmpty {
+            when (cadence) {
+                Cadence.Daily -> DayOfWeek.entries.toSet()
+                Cadence.Weekly, Cadence.Monthly -> setOf(clock.today().dayOfWeek)
+            }
         },
     )
 

@@ -6,6 +6,7 @@ import com.mikeliang.questtracker.core.model.Attribute
 import com.mikeliang.questtracker.core.model.Cadence
 import com.mikeliang.questtracker.core.model.Quest
 import com.mikeliang.questtracker.core.model.QuestId
+import java.time.DayOfWeek
 import java.time.LocalTime
 
 /**
@@ -84,6 +85,12 @@ sealed interface QuestListEvent {
         val reminderTime: LocalTime?,
         /** Opt-in: saving a journal entry auto-completes this quest for its period. */
         val journalLinked: Boolean = false,
+        /**
+         * Which weekdays the reminder fires on. Empty means "use the per-cadence
+         * default" (every day for dailies, the creation weekday for weeklies/monthlies)
+         * — so programmatic callers that don't pick days keep the old behaviour.
+         */
+        val reminderDays: Set<DayOfWeek> = emptySet(),
     ) : QuestListEvent
 
     /** The completion feedback has been displayed; clear it from state. */
