@@ -22,6 +22,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +44,10 @@ class QuestDetailViewModel @AssistedInject constructor(
     // The raw id string, not QuestId: @JvmInline value classes mangle the factory
     // method name, which Dagger's @AssistedFactory can't process.
     @Assisted questIdValue: String,
+    // Epoch day of the Quest Log row this was opened from; null when opened from the
+    // board or profile, where no single day is in play. Scopes the journal section
+    // only — identity, evidence and edits are always the quest's whole life.
+    @Assisted journalDayEpochDay: Long?,
     private val repository: QuestRepository,
     private val journalRepository: JournalRepository,
     private val engine: QuestEngine,
@@ -51,10 +56,12 @@ class QuestDetailViewModel @AssistedInject constructor(
 
     @AssistedFactory
     interface Factory {
-        fun create(questIdValue: String): QuestDetailViewModel
+        fun create(questIdValue: String, journalDayEpochDay: Long?): QuestDetailViewModel
     }
 
     private val questId = QuestId(questIdValue)
+
+    private val journalDay = journalDayEpochDay?.let(LocalDate::ofEpochDay)
 
     private val closed = MutableStateFlow(false)
 
@@ -80,7 +87,8 @@ class QuestDetailViewModel @AssistedInject constructor(
                 },
                 canDelete = quest.status == QuestStatus.Active && canDeleteQuest(quest, records),
                 closed = isClosed,
-                journalEntries = journalEntriesFor(questId, entries),
+                journalEntries = journalEntriesFor(questId, entries, journalDay),
+                journalDay = journalDay,
             )
         }
     }.stateIn(

@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import com.mikeliang.questtracker.ui.reflection.ReflectionScreen
 import com.mikeliang.questtracker.ui.questlog.QuestLogScreen
 import com.mikeliang.questtracker.ui.theme.QuestTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
+import java.time.LocalDate
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -101,14 +103,33 @@ class MainActivity : ComponentActivity() {
      * over the current tab; [showReflection] shows the monthly reflection the same
      * way. Back inside the reflection skips it (its own BackHandler); a tab tap just
      * puts it away without skipping, so the banner stays armed.
+     *
+     * `openQuestDay` (epoch day, saveable) rides alongside `openQuestId` when detail
+     * is opened from a Quest Log row: that day's journal is what detail shows. The
+     * board and profile have no day, so they clear it.
      */
     private enum class HomeTab { Today, Log, Profile }
 
     @Composable
     private fun HomeScaffold() {
         var tab by rememberSaveable { mutableStateOf(HomeTab.Today) }
+        // Retains each tab's saveable state (notably the Quest Log scroll position) while
+        // it is off-screen behind the quest-detail overlay, so returning from detail lands
+        // back where you were rather than scrolled to the top.
+        val tabStateHolder = rememberSaveableStateHolder()
         var openQuestId by rememberSaveable { mutableStateOf<String?>(null) }
+        var openQuestDay by rememberSaveable { mutableStateOf<Long?>(null) }
         var showReflection by rememberSaveable { mutableStateOf(false) }
+
+        fun openQuest(id: QuestId, day: LocalDate?) {
+            openQuestId = id.value
+            openQuestDay = day?.toEpochDay()
+        }
+
+        fun closeQuest() {
+            openQuestId = null
+            openQuestDay = null
+        }
         Scaffold(
             bottomBar = {
                 NavigationBar {
@@ -116,7 +137,7 @@ class MainActivity : ComponentActivity() {
                         selected = tab == HomeTab.Today,
                         onClick = {
                             tab = HomeTab.Today
-                            openQuestId = null
+                            closeQuest()
                             showReflection = false
                         },
                         icon = { Icon(Icons.Filled.Home, contentDescription = null) },
@@ -126,7 +147,7 @@ class MainActivity : ComponentActivity() {
                         selected = tab == HomeTab.Log,
                         onClick = {
                             tab = HomeTab.Log
-                            openQuestId = null
+                            closeQuest()
                             showReflection = false
                         },
                         icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = null) },
@@ -136,7 +157,7 @@ class MainActivity : ComponentActivity() {
                         selected = tab == HomeTab.Profile,
                         onClick = {
                             tab = HomeTab.Profile
-                            openQuestId = null
+                            closeQuest()
                             showReflection = false
                         },
                         icon = { Icon(Icons.Filled.Person, contentDescription = null) },
@@ -150,19 +171,26 @@ class MainActivity : ComponentActivity() {
                 when {
                     showReflection -> ReflectionScreen(onClose = { showReflection = false })
                     questId != null -> {
-                        BackHandler { openQuestId = null }
+                        BackHandler { closeQuest() }
                         QuestDetailScreen(
                             questId = QuestId(questId),
-                            onClose = { openQuestId = null },
+                            journalDay = openQuestDay?.let(LocalDate::ofEpochDay),
+                            onClose = { closeQuest() },
                         )
                     }
-                    else -> when (tab) {
-                        HomeTab.Today -> QuestListScreen(
-                            onOpenQuest = { openQuestId = it.value },
-                            onOpenReflection = { showReflection = true },
-                        )
-                        HomeTab.Log -> QuestLogScreen(onOpenQuest = { openQuestId = it.value })
-                        HomeTab.Profile -> ProfileScreen(onOpenChapter = { openQuestId = it.value })
+                    else -> tabStateHolder.SaveableStateProvider(tab.name) {
+                        when (tab) {
+                            HomeTab.Today -> QuestListScreen(
+                                onOpenQuest = { openQuest(it, null) },
+                                onOpenReflection = { showReflection = true },
+                            )
+                            HomeTab.Log -> QuestLogScreen(
+                                onOpenQuest = { id, day -> openQuest(id, day) },
+                            )
+                            HomeTab.Profile -> ProfileScreen(
+                                onOpenChapter = { openQuest(it, null) },
+                            )
+                        }
                     }
                 }
             }

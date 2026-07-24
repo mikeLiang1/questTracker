@@ -221,6 +221,14 @@ retention evidence says calendars drive habit apps. The thematically-right versi
 > editable/deletable while the completions they banked are permanent (§5), and a quest's
 > tick keeps working with no writing required (no friction, no punishment).
 
+> **Amendment (2026-07-24):** the calendar comes back on the roadmap, but as a
+> **day-finder over the Quest Log, not a second data model** — pick a date, see that
+> day's completions and that day's writing. It stays a view, not a loop: the §6 warning
+> holds, nothing about it is required, and no streak grid or "you missed these days"
+> heat map is ever drawn on it (that is punishment by visualisation — see §5). The
+> primitive it needs already exists: entries are keyed on a frozen `entryDate`, and
+> detail opened from a Quest Log row is scoped to the day it was tapped on.
+
 ## 9. Social (deferred; design principles locked now)
 
 Not in v1 (avoids backend/auth/sync entirely). When it comes:

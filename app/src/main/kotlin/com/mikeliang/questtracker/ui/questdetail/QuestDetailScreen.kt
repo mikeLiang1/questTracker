@@ -56,6 +56,7 @@ import com.mikeliang.questtracker.core.model.ReminderSchedule
 import com.mikeliang.questtracker.ui.questlog.WriteEntrySheet
 import dagger.hilt.android.lifecycle.withCreationCallback
 import java.text.NumberFormat
+import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -65,20 +66,24 @@ import java.util.Locale
  * Stateful entry point. The ViewModel is assisted-injected with the quest id via
  * Hilt's creation callback — plain `viewModel(key = …)`, no navigation artifact —
  * and keyed per quest so revisiting different quests never crosses state.
+ *
+ * [journalDay] is the Quest Log day the quest was opened from; it scopes the journal
+ * section to that day's writing. It is part of the key: the same quest opened from
+ * two different days is two different reads.
  */
 @Composable
-fun QuestDetailScreen(questId: QuestId, onClose: () -> Unit) {
+fun QuestDetailScreen(questId: QuestId, journalDay: LocalDate? = null, onClose: () -> Unit) {
     val owner = checkNotNull(LocalViewModelStoreOwner.current)
     val extras = if (owner is HasDefaultViewModelProviderFactory) {
         owner.defaultViewModelCreationExtras.withCreationCallback<QuestDetailViewModel.Factory> {
-            it.create(questId.value)
+            it.create(questId.value, journalDay?.toEpochDay())
         }
     } else {
         CreationExtras.Empty
     }
     val viewModel: QuestDetailViewModel = viewModel(
         viewModelStoreOwner = owner,
-        key = "quest-detail-${questId.value}",
+        key = "quest-detail-${questId.value}-${journalDay ?: "all"}",
         extras = extras,
     )
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -245,7 +250,11 @@ private fun DetailList(
         if (state.journalEntries.isNotEmpty()) {
             item {
                 Text(
-                    text = "Journal",
+                    // Day-scoped opens say which day, so the section can never read as
+                    // the quest's whole archive.
+                    text = state.journalDay
+                        ?.let { "Journal · ${journalDayStamp.format(it)}" }
+                        ?: "Journal",
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
@@ -279,9 +288,9 @@ private fun DetailList(
 }
 
 /**
- * One journal entry written toward this quest — the entry's home now that
- * quest-scoped entries stay off the main timeline. Tap to edit or delete; either
- * touches only the entry, never the completion it banked.
+ * One journal entry written toward this quest, day-scoped to the log day this screen
+ * was opened from — the same entry also reads on the main Quest Log under that day.
+ * Tap to edit or delete; either touches only the entry, never the completion it banked.
  */
 @Composable
 private fun JournalEntryCard(entry: JournalEntry, onOpenEntry: (JournalEntry) -> Unit) {
@@ -306,6 +315,7 @@ private fun JournalEntryCard(entry: JournalEntry, onOpenEntry: (JournalEntry) ->
 }
 
 private val entryStamp = DateTimeFormatter.ofPattern("MMM d, h:mm a")
+private val journalDayStamp = DateTimeFormatter.ofPattern("MMM d")
 
 @Composable
 private fun IdentityCard(quest: Quest, kind: QuestKind.Recurring?) {

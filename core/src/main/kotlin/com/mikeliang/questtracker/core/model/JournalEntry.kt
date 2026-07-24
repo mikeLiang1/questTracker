@@ -19,10 +19,13 @@ value class JournalEntryId(val value: String)
  * key; travelling later never moves an entry to a different day.
  * @property editedAt set on every edit; null while the entry is untouched.
  * @property questIds the quests this entry counted toward, frozen at save time.
- * Presentation scoping only: a quest-scoped entry lives on its quest's detail screen
- * instead of the main Quest Log; an empty set means free-form writing, shown on the
- * timeline. This is one-directional bookkeeping on the entry — completions still
- * carry no reference back, and deleting the entry still un-completes nothing.
+ * Presentation bookkeeping only: every entry shows on the main Quest Log under its day
+ * (a quest-linked one tagged with the quest it counted toward), and a quest-linked
+ * entry *also* shows on that quest's detail screen. The pairing is quest *and* day —
+ * detail opened from a Quest Log row shows only that day's entries, so an old
+ * completion never inherits later writing. An empty set is free-form writing (timeline
+ * only). This is one-directional: completions carry no reference back, and deleting
+ * the entry still un-completes nothing.
  */
 data class JournalEntry(
     val id: JournalEntryId,

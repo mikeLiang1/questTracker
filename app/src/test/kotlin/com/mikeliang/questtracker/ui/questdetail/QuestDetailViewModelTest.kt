@@ -45,8 +45,9 @@ class QuestDetailViewModelTest {
     private val repository = FakeQuestRepository()
     private val journalRepository = FakeJournalRepository()
 
-    private fun viewModel(id: String = "quest-1") = QuestDetailViewModel(
+    private fun viewModel(id: String = "quest-1", journalDay: LocalDate? = null) = QuestDetailViewModel(
         questIdValue = id,
+        journalDayEpochDay = journalDay?.toEpochDay(),
         repository = repository,
         journalRepository = journalRepository,
         engine = QuestEngine(clock),
@@ -204,6 +205,34 @@ class QuestDetailViewModelTest {
         viewModel().uiState.test {
             val state = awaitUntil { it.journalEntries.isNotEmpty() }
             assertEquals(listOf("newer", "older"), state.journalEntries.map { it.id.value })
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `opening from a Quest Log day shows only that day's entries`() = runTest {
+        repository.seed(recurringQuest())
+        journalRepository.upsertEntry(entry(id = "older", text = "First line", at = "2026-07-15T21:00:00Z"))
+        journalRepository.upsertEntry(entry(id = "newer", text = "Second line", at = "2026-07-16T21:00:00Z"))
+
+        viewModel(journalDay = LocalDate.parse("2026-07-16")).uiState.test {
+            val state = awaitUntil { it.journalEntries.isNotEmpty() }
+            assertEquals(listOf("newer"), state.journalEntries.map { it.id.value })
+            assertEquals(LocalDate.parse("2026-07-16"), state.journalDay)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `a day cleared before anything was written shows no journal`() = runTest {
+        val quest = recurringQuest()
+        repository.seed(quest)
+        repository.recordCompletion(completion(quest, LocalDate.parse("2026-07-15")))
+        journalRepository.upsertEntry(entry(id = "newer", text = "Written a day later"))
+
+        viewModel(journalDay = LocalDate.parse("2026-07-15")).uiState.test {
+            val state = awaitUntil { it.quest != null }
+            assertTrue(state.journalEntries.isEmpty())
             cancelAndIgnoreRemainingEvents()
         }
     }

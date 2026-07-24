@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -43,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -301,6 +303,7 @@ private fun RecurringQuestRow(
     // The tick stays tappable too, as the visible/accessible fallback.
     SwipeToClear(
         enabled = !item.completed || item.undoable,
+        clearing = !item.completed,
         onToggle = if (item.completed) onUnclear else onComplete,
     ) {
         Card(onClick = onOpen, modifier = Modifier.fillMaxWidth()) {
@@ -346,6 +349,7 @@ private fun SideQuestRow(
     // recurring rows: tap opens, swipe clears.
     SwipeToClear(
         enabled = !item.completed || item.undoable,
+        clearing = !item.completed,
         onToggle = if (item.completed) onUnclear else onComplete,
     ) {
         Card(
@@ -384,6 +388,7 @@ private fun SideQuestRow(
 @Composable
 private fun SwipeToClear(
     enabled: Boolean,
+    clearing: Boolean,
     onToggle: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -391,25 +396,38 @@ private fun SwipeToClear(
     // LazyColumn key), so read the latest lambda rather than the one captured
     // when the state was first remembered.
     val currentOnToggle by rememberUpdatedState(onToggle)
-    val state = rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value != SwipeToDismissBoxValue.Settled) currentOnToggle()
-            false
-        },
-    )
+    val state = rememberSwipeToDismissBoxState()
+    // Fire on release, not on threshold cross. confirmValueChange runs mid-drag
+    // the instant the row passes the threshold, so the quest cleared before the
+    // finger lifted. Watching the settled value instead waits for the let-go: the
+    // row settles to a dismissed anchor only after release, and we snap it straight
+    // back so the banked gain stays on screen (the row is never truly dismissed).
+    LaunchedEffect(state) {
+        snapshotFlow { state.currentValue }
+            .collect { value ->
+                if (value != SwipeToDismissBoxValue.Settled) {
+                    currentOnToggle()
+                    state.snapTo(SwipeToDismissBoxValue.Settled)
+                }
+            }
+    }
     SwipeToDismissBox(
         state = state,
         enableDismissFromStartToEnd = enabled,
         enableDismissFromEndToStart = enabled,
-        backgroundContent = { SwipeClearBackground(state) },
+        backgroundContent = { SwipeClearBackground(state, clearing) },
     ) {
         content()
     }
 }
 
-/** Calm check reveal behind a swiping row — clearing is a win, never a deletion. */
+/**
+ * Calm glyph reveal behind a swiping row: a check when the swipe will clear a quest
+ * (a win, never a deletion), a refresh arrow when it will un-clear during the
+ * same-day undo window.
+ */
 @Composable
-private fun SwipeClearBackground(state: SwipeToDismissBoxState) {
+private fun SwipeClearBackground(state: SwipeToDismissBoxState, clearing: Boolean) {
     val alignment = when (state.dismissDirection) {
         SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
         else -> Alignment.CenterEnd
@@ -423,7 +441,7 @@ private fun SwipeClearBackground(state: SwipeToDismissBoxState) {
         contentAlignment = alignment,
     ) {
         Icon(
-            Icons.Filled.Check,
+            if (clearing) Icons.Filled.Check else Icons.Filled.Refresh,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
         )

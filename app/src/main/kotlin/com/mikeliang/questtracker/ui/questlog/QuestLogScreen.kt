@@ -48,10 +48,13 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** Stateful entry point: hooks the ViewModel up to the stateless content. */
+/**
+ * Stateful entry point: hooks the ViewModel up to the stateless content. [onOpenQuest]
+ * carries the day the tapped row sits under, so detail can scope its journal to it.
+ */
 @Composable
 fun QuestLogScreen(
-    onOpenQuest: (QuestId) -> Unit = {},
+    onOpenQuest: (QuestId, LocalDate) -> Unit = { _, _ -> },
     viewModel: QuestLogViewModel = viewModel(),
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -64,7 +67,7 @@ fun QuestLogContent(
     state: QuestLogUiState,
     onEvent: (QuestLogEvent) -> Unit,
     // Screen-level navigation, not a ViewModel event: opening detail changes no state.
-    onOpenQuest: (QuestId) -> Unit = {},
+    onOpenQuest: (QuestId, LocalDate) -> Unit = { _, _ -> },
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     var showWrite by remember { mutableStateOf(false) }
@@ -126,7 +129,7 @@ fun QuestLogContent(
 @Composable
 private fun Timeline(
     state: QuestLogUiState,
-    onOpenQuest: (QuestId) -> Unit,
+    onOpenQuest: (QuestId, LocalDate) -> Unit,
     onOpenEntry: (JournalEntry) -> Unit,
 ) {
     LazyColumn(
@@ -144,8 +147,11 @@ private fun Timeline(
             }
             items(day.items, key = { it.key }) { item ->
                 when (item) {
-                    is QuestLogItem.Entry -> EntryCard(item.entry, onOpenEntry)
-                    is QuestLogItem.Completion -> CompletionRow(item, onOpenQuest)
+                    is QuestLogItem.Entry -> EntryCard(item, onOpenEntry)
+                    is QuestLogItem.Completion ->
+                        // The day comes from the group, not the record: it is the day
+                        // the user tapped, and the day whose journal detail will show.
+                        CompletionRow(item) { onOpenQuest(item.record.questId, day.date) }
                 }
             }
         }
@@ -162,9 +168,12 @@ private val QuestLogItem.key: String
 /**
  * A written entry: the user's own words carry the card; metadata stays quiet.
  * Tapping opens the edit sheet — entries are the one editable thing in the app.
+ * When the entry counted toward a quest, a quiet "counted toward …" line names it —
+ * the same writing also reads on that quest's detail screen for the day.
  */
 @Composable
-private fun EntryCard(entry: JournalEntry, onOpenEntry: (JournalEntry) -> Unit) {
+private fun EntryCard(item: QuestLogItem.Entry, onOpenEntry: (JournalEntry) -> Unit) {
+    val entry = item.entry
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -176,6 +185,14 @@ private fun EntryCard(entry: JournalEntry, onOpenEntry: (JournalEntry) -> Unit) 
                 text = entry.text,
                 style = MaterialTheme.typography.bodyLarge,
             )
+            if (item.linkedQuestTitles.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Counted toward ${item.linkedQuestTitles.joinToString(", ")}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
             Spacer(Modifier.height(6.dp))
             Text(
                 text = buildString {
@@ -191,7 +208,7 @@ private fun EntryCard(entry: JournalEntry, onOpenEntry: (JournalEntry) -> Unit) 
 
 /** A banked completion: quieter than entries — evidence, not writing. */
 @Composable
-private fun CompletionRow(item: QuestLogItem.Completion, onOpenQuest: (QuestId) -> Unit) {
+private fun CompletionRow(item: QuestLogItem.Completion, onOpen: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant,
@@ -199,7 +216,7 @@ private fun CompletionRow(item: QuestLogItem.Completion, onOpenQuest: (QuestId) 
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { onOpenQuest(item.record.questId) },
+            .clickable(onClick = onOpen),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

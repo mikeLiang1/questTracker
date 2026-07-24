@@ -24,10 +24,11 @@ class QuestLogTest {
     }
 
     @Test
-    fun `days are newest-first and items within a day newest-first`() {
+    fun `days are newest-first and unlinked items within a day are newest-first`() {
         val quest = recurringQuest(id = "gym", title = "Gym hour")
         val log = buildQuestLog(
             quests = listOf(quest),
+            // A manual tick at noon, and a free-form entry at 20:00 that banked nothing.
             completions = listOf(completion(quest, date("2026-07-15"))),
             entries = listOf(
                 journalEntry(id = "e1", entryDate = date("2026-07-16")),
@@ -41,10 +42,38 @@ class QuestLogTest {
         )
 
         assertEquals(listOf(date("2026-07-16"), date("2026-07-15")), log.map { it.date })
-        // On the 15th: the 20:00 entry outranks the noon completion.
+        // Nothing is paired here, so the 20:00 entry outranks the noon completion.
         val fifteenth = log.last().items
         assertTrue(fifteenth.first() is QuestLogItem.Entry)
         assertTrue(fifteenth.last() is QuestLogItem.Completion)
+    }
+
+    @Test
+    fun `a journal-linked completion sits directly above the entry that banked it`() {
+        val linked = recurringQuest(id = "reading", title = "Read 20 min")
+        val other = recurringQuest(id = "gym", title = "Gym hour")
+        val day = date("2026-07-16")
+        // The entry (21:00) banked the reading quest; the gym tick (noon) is unrelated.
+        val entry = journalEntry(id = "wrote", entryDate = day, questIds = setOf(linked.id))
+        val log = buildQuestLog(
+            quests = listOf(linked, other),
+            completions = listOf(completion(linked, day), completion(other, day)),
+            entries = listOf(entry),
+            zone = utc,
+        )
+
+        val items = log.single().items
+        // Reading completion immediately above its entry; the unrelated gym tick keeps
+        // its own newest-first slot rather than being hoisted with it.
+        assertEquals(
+            listOf("completion:reading", "entry:wrote", "completion:gym"),
+            items.map { item ->
+                when (item) {
+                    is QuestLogItem.Entry -> "entry:${item.entry.id.value}"
+                    is QuestLogItem.Completion -> "completion:${item.record.questId.value}"
+                }
+            },
+        )
     }
 
     @Test
@@ -105,7 +134,7 @@ class QuestLogTest {
     }
 
     @Test
-    fun `quest-scoped entries stay off the timeline - their completion row still marks the day`() {
+    fun `a quest-scoped entry appears on its day tagged with the quest it counted toward`() {
         val quest = recurringQuest(id = "journal", title = "One line of journal")
         val scoped = journalEntry(
             id = "scoped",
@@ -121,12 +150,30 @@ class QuestLogTest {
             zone = utc,
         )
 
-        val items = log.single().items
+        val entries = log.single().items.filterIsInstance<QuestLogItem.Entry>()
+        assertEquals(setOf("scoped", "free"), entries.map { it.entry.id.value }.toSet())
+        // The scoped entry names its quest; the free-form one names nothing.
         assertEquals(
-            listOf("free"),
-            items.filterIsInstance<QuestLogItem.Entry>().map { it.entry.id.value },
+            listOf("One line of journal"),
+            entries.single { it.entry.id.value == "scoped" }.linkedQuestTitles,
         )
-        assertEquals(1, items.filterIsInstance<QuestLogItem.Completion>().size)
+        assertEquals(emptyList<String>(), entries.single { it.entry.id.value == "free" }.linkedQuestTitles)
+        assertEquals(1, log.single().items.filterIsInstance<QuestLogItem.Completion>().size)
+    }
+
+    @Test
+    fun `a scoped entry whose quest was deleted still shows, untagged`() {
+        val scoped = journalEntry(
+            id = "orphan",
+            entryDate = date("2026-07-16"),
+            questIds = setOf(recurringQuest(id = "gone").id),
+        )
+
+        val log = buildQuestLog(emptyList(), emptyList(), listOf(scoped), utc)
+
+        val entry = log.single().items.filterIsInstance<QuestLogItem.Entry>().single()
+        assertEquals("orphan", entry.entry.id.value)
+        assertEquals(emptyList<String>(), entry.linkedQuestTitles)
     }
 
     @Test
@@ -152,6 +199,41 @@ class QuestLogTest {
         val entries = journalEntriesFor(questId, listOf(older, newer, elsewhere, freeform))
 
         assertEquals(listOf("newer", "older"), entries.map { it.id.value })
+    }
+
+    @Test
+    fun `journalEntriesFor scoped to a day returns only that day's writing`() {
+        val questId = recurringQuest(id = "journal").id
+        val yesterday = journalEntry(
+            id = "yesterday",
+            entryDate = date("2026-07-15"),
+            questIds = setOf(questId),
+        )
+        val today = journalEntry(
+            id = "today",
+            entryDate = date("2026-07-16"),
+            questIds = setOf(questId),
+        )
+
+        val entries = journalEntriesFor(questId, listOf(yesterday, today), on = date("2026-07-16"))
+
+        assertEquals(listOf("today"), entries.map { it.id.value })
+    }
+
+    @Test
+    fun `a day with no writing for the quest shows no entries`() {
+        // The reported case: cleared before journalling existed, written on a later
+        // day. Opening the older completion must not surface the newer entry.
+        val questId = recurringQuest(id = "journal").id
+        val written = journalEntry(
+            id = "later",
+            entryDate = date("2026-07-16"),
+            questIds = setOf(questId),
+        )
+
+        val entries = journalEntriesFor(questId, listOf(written), on = date("2026-07-15"))
+
+        assertEquals(emptyList<String>(), entries.map { it.id.value })
     }
 
     @Test

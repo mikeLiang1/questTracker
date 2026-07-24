@@ -660,6 +660,32 @@ plan (see the §8 amendment in the design foundation):
   a journal-linked quest still works with no writing required.
 - Storage: `journal_entries` table (DB v3, `MIGRATION_2_3`), separate
   `JournalRepository` seam so `QuestRepository`'s append-only contract stays clean.
+- **An entry belongs to a day, not to a quest's whole history** (corrected 2026-07-24
+  after use). The first cut sent every quest-scoped entry to that quest's detail
+  screen as one ungrouped archive, so tapping a *months-old* completion row on the
+  Quest Log showed writing done long afterwards — a quest cleared before journalling
+  even existed appeared to have a journal. Fixed by carrying the tapped day through
+  navigation: `journalEntriesFor(questId, entries, on = day)` narrows on the frozen
+  `entryDate`, `QuestDetailViewModel` takes the day as a second assisted param (epoch
+  day; null = board/profile, where no day is in play = whole archive), and the section
+  header names the day. A completion with no writing of its own renders no Journal
+  section at all.
+- **Every entry shows on the Quest Log timeline** (decided 2026-07-24, same session —
+  this is option (a) of the Phase 9 open decision, now closed). `buildQuestLog` no
+  longer filters `questIds.isEmpty()`: a quest-linked entry sits on its day beside the
+  completion it banked, tagged "Counted toward &lt;Quest&gt;" via
+  `QuestLogItem.Entry.linkedQuestTitles` (resolved against current quests; empty when
+  the quest was deleted — the writing outlives the link). The same entry still reads
+  day-scoped on the quest's detail screen. The day is the single index, which is what
+  the Phase 9 calendar needs.
+- **A journal-linked completion pairs directly above its entry** (decided 2026-07-24).
+  The within-day timeline stays newest-first, with one exception: the completion an
+  entry banked is lifted to sit immediately above that entry so the quest/journal pair
+  reads together (quest on top). Unrelated completions and free-form entries keep their
+  plain newest-first slot — this is a pairing rule, *not* "all quests above all
+  journals" (an earlier pass tried that and was wrong). Pairing is by the entry's
+  frozen `questIds`; period dedupe guarantees one banking entry per quest per day, so
+  it's unambiguous (`orderWithinDay` in `QuestLog.kt`).
 
 ---
 
@@ -675,6 +701,29 @@ plan (see the §8 amendment in the design foundation):
   rather than a loop, so it waits until the core loop demonstrably retains.
   *(Superseded: the past-completions half shipped early in Phase 7b as the journal's
   reading surface. Still open for v1.5: upcoming scheduled quests in the timeline.)*
+
+---
+
+## Phase 9 — Calendar day-finder [PLANNED, not started]
+
+Goal (user, 2026-07-24): jump to a specific date and see what was completed and what
+was written that day. A navigation surface over the Quest Log, **not** a new data
+model — `buildQuestLog` already returns `List<QuestLogDay>`, and entries already carry
+a frozen `entryDate`, so a month grid is a second presentation of data that exists.
+
+Constraints inherited from the design foundation (§5, §8 amendment 2026-07-24):
+
+- No streak grid, no heat map, no red/empty-day marking. A day with nothing on it is
+  blank, not a failure. Marking is presence-only (a dot when something happened).
+- Nothing about it is required; it never becomes the home tab.
+
+**Resolved 2026-07-24 — option (a).** `buildQuestLog` no longer hides quest-linked
+entries: every entry shows on the timeline under its day, tagged "Counted toward
+&lt;Quest&gt;", so `QuestLogDay` is now the single day index the calendar can render
+directly. (The rejected (b) — a separate `:core` day view unioning entries with
+completions — would have meant two code paths over the same data.) Phase 9 is therefore
+purely a navigation surface: a month grid whose cells jump to an existing `QuestLogDay`.
+The presence-only constraint above still stands — no streak grid, no heat map.
 
 ---
 

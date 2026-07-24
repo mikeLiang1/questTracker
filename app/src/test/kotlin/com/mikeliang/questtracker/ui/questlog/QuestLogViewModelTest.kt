@@ -272,8 +272,8 @@ class QuestLogViewModelTest {
     }
 
     @Test
-    fun `a scoped entry stays off the timeline - only its completion marks the day`() = runTest {
-        questRepository.seed(recurringQuest(id = "journal", journalLinked = true))
+    fun `a scoped entry shows on its day alongside the completion it banked`() = runTest {
+        questRepository.seed(recurringQuest(id = "journal", title = "One line of journal", journalLinked = true))
         val vm = viewModel()
 
         vm.uiState.test {
@@ -284,7 +284,9 @@ class QuestLogViewModelTest {
             assertEquals(LocalDate.parse("2026-07-17"), state.today)
             val day = state.days.single()
             assertEquals(LocalDate.parse("2026-07-17"), day.date)
-            assertTrue(day.items.single() is QuestLogItem.Completion)
+            val entry = day.items.filterIsInstance<QuestLogItem.Entry>().single()
+            assertEquals(listOf("One line of journal"), entry.linkedQuestTitles)
+            assertEquals(1, day.items.filterIsInstance<QuestLogItem.Completion>().size)
             cancelAndIgnoreRemainingEvents()
         }
     }

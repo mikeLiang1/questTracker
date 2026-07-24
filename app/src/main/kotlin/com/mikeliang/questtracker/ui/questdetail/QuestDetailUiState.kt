@@ -5,6 +5,7 @@ import com.mikeliang.questtracker.core.engine.QuestEdit
 import com.mikeliang.questtracker.core.model.JournalEntry
 import com.mikeliang.questtracker.core.model.JournalEntryId
 import com.mikeliang.questtracker.core.model.Quest
+import java.time.LocalDate
 import java.time.LocalTime
 
 /**
@@ -14,6 +15,11 @@ import java.time.LocalTime
  * [closed] asks the host to pop back (after retire/delete, or if the quest vanished).
  * [journalEntries] are the entries that counted toward this quest — they live here
  * rather than on the main Quest Log timeline, newest first.
+ *
+ * [journalDay] is the Quest Log day this was opened from, and [journalEntries] is
+ * already narrowed to it: a day's completion shows that day's writing and nothing
+ * else. Null means no day is in play (opened from the board or profile) and the list
+ * is the quest's whole journal.
  */
 data class QuestDetailUiState(
     val loading: Boolean = false,
@@ -23,6 +29,7 @@ data class QuestDetailUiState(
     val canDelete: Boolean = false,
     val closed: Boolean = false,
     val journalEntries: List<JournalEntry> = emptyList(),
+    val journalDay: LocalDate? = null,
 )
 
 sealed interface QuestDetailEvent {
